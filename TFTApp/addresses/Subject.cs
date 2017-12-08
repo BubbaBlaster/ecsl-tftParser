@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.ComponentModel;
 
-namespace Asteria.Utilities
+namespace CDC.Utilities
 {
     public static class Invoker
     {

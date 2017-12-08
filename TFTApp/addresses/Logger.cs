@@ -4,7 +4,7 @@ using System.Text;
 using System.Runtime.CompilerServices;
 using System.IO;
 
-namespace Asteria.Logging
+namespace CDC.Logging
 {
     /// <summary>
     /// Wrapper class for logging framework or libraries.

@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
 
-namespace Asteria.Logging
+namespace CDC.Logging
 {
     public interface ILogger
     {
@@ -52,9 +52,9 @@ namespace Asteria.Logging
     }
 
     /// <summary>
-    /// Use this 'using static Asteria.Logging.Log;'
+    /// Use this 'using static CDC.Logging.Log;'
     /// </summary>
-    public static class AsteriaLogger
+    public static class CDCLogger
     {
         public static ILogger Log { get; set; }
     }

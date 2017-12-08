@@ -5,8 +5,8 @@ using System.Data;
 using System.Linq;
 using System.Collections.Generic;
 using System.Text;
-using Asteria.Utilities;
-using Asteria.Logging;
+using CDC.Utilities;
+using CDC.Logging;
 
 namespace addresses
 {
