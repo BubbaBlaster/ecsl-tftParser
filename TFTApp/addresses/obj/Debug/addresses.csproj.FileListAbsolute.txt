@@ -1,0 +1,6 @@
+N:\TFTGit\TFTApp\addresses\bin\Debug\addresses.dll
+N:\TFTGit\TFTApp\addresses\bin\Debug\addresses.pdb
+N:\TFTGit\TFTApp\addresses\bin\Debug\NLog.dll
+N:\TFTGit\TFTApp\addresses\obj\Debug\addresses.csprojResolveAssemblyReference.cache
+N:\TFTGit\TFTApp\addresses\obj\Debug\addresses.dll
+N:\TFTGit\TFTApp\addresses\obj\Debug\addresses.pdb

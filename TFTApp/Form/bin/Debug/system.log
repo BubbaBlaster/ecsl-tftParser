@@ -1,0 +1,4 @@
+[Info] Initializaing Database
+[Warn] Project Smile - Valerie Bolden has too many kids. 'Caleb' has been excluded from the list. (N:\tft\addresses\Database.cs:317 - ReadPSRawData)
+[Warn] Project Smile - Cynthia Moore child 'London' is above the age limit. (N:\tft\addresses\Database.cs:301 - ReadPSRawData)
+[Warn] Project Smile - Cynthia Moore child 'Cortni' is above the age limit. (N:\tft\addresses\Database.cs:301 - ReadPSRawData)

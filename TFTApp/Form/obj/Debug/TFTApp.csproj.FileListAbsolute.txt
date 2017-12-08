@@ -1,0 +1,15 @@
+N:\TFTGit\TFTApp\Form\bin\Debug\Data\PS2017.csv
+N:\TFTGit\TFTApp\Form\bin\Debug\Data\PSAdds.csv
+N:\TFTGit\TFTApp\Form\bin\Debug\Data\Special.csv
+N:\TFTGit\TFTApp\Form\bin\Debug\Data\TFTExport.csv
+N:\TFTGit\TFTApp\Form\bin\Debug\TFT.exe
+N:\TFTGit\TFTApp\Form\bin\Debug\TFT.pdb
+N:\TFTGit\TFTApp\Form\bin\Debug\addresses.dll
+N:\TFTGit\TFTApp\Form\bin\Debug\addresses.pdb
+N:\TFTGit\TFTApp\Form\obj\Debug\TFTApp.csprojResolveAssemblyReference.cache
+N:\TFTGit\TFTApp\Form\obj\Debug\TFT.Form1.resources
+N:\TFTGit\TFTApp\Form\obj\Debug\TFT.NoShowProcessor.resources
+N:\TFTGit\TFTApp\Form\obj\Debug\TFT.Top5Analysis.resources
+N:\TFTGit\TFTApp\Form\obj\Debug\TFTApp.csproj.GenerateResource.Cache
+N:\TFTGit\TFTApp\Form\obj\Debug\TFT.exe
+N:\TFTGit\TFTApp\Form\obj\Debug\TFT.pdb
