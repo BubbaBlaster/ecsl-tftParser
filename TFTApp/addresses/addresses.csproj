@@ -46,13 +46,16 @@
     <Compile Include="AddressParser.cs" />
     <Compile Include="Columns.cs" />
     <Compile Include="Database.cs" />
-    <Compile Include="ILogger.cs" />
-    <Compile Include="Logger.cs" />
     <Compile Include="RegistrationGenerator.cs" />
-    <Compile Include="Subject.cs" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Properties\" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\CDC\CDC.csproj">
+      <Project>{dcc565e6-77fe-4dd0-b876-0606821e1e73}</Project>
+      <Name>CDC</Name>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

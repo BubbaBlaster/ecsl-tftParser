@@ -1,11 +1,13 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 14
-VisualStudioVersion = 14.0.23107.0
+VisualStudioVersion = 14.0.25420.1
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WindowsFormsApplication1", "Form\TFTApp.csproj", "{E19F9812-5CE8-476D-BFF4-BABF416E49CA}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TFTApp", "Form\TFTApp.csproj", "{E19F9812-5CE8-476D-BFF4-BABF416E49CA}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "addresses", "addresses\addresses.csproj", "{9D395D94-2065-4244-9543-89F077D14767}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CDC", "CDC\CDC.csproj", "{DCC565E6-77FE-4DD0-B876-0606821E1E73}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -21,6 +23,10 @@ Global
 		{9D395D94-2065-4244-9543-89F077D14767}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{9D395D94-2065-4244-9543-89F077D14767}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{9D395D94-2065-4244-9543-89F077D14767}.Release|Any CPU.Build.0 = Release|Any CPU
+		{DCC565E6-77FE-4DD0-B876-0606821E1E73}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DCC565E6-77FE-4DD0-B876-0606821E1E73}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DCC565E6-77FE-4DD0-B876-0606821E1E73}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DCC565E6-77FE-4DD0-B876-0606821E1E73}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
