@@ -16,7 +16,6 @@ namespace addresses
         public ILogger _log = new Logger();
         private DataTable rawTFTData;
         private DataTable rawPSData;
-        private DataTable rawPSAddData;
         private DataTable rawSpecialData;
         ObservableString _currentOperation = ObservableString.Get("CurrentOperation");
 
