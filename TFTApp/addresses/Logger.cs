@@ -8,15 +8,12 @@ namespace CDC.Logging
 {
     /// <summary>
     /// Wrapper class for logging framework or libraries.
-    /// 
-    /// Current implementation uses NLog. Please see NLog documentation for proper configuration and use.
-    /// 
     /// </summary>
     public class Logger : ILogger
     {
         StreamWriter logFile = new StreamWriter("system.log");
 
-        enum LogLevel
+        private enum LogLevel
         {
             Debug,
             Trace,
