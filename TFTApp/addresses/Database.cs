@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.Text;
 using CDC.Utilities;
 using CDC.Logging;
+using CDC.Configuration;
 
 namespace addresses
 {
@@ -79,7 +80,10 @@ namespace addresses
             try
             {
                 int lineNumber = 0;
-                using (StreamReader sr = new StreamReader("Data/Special.csv"))
+                string filename = "../../Data/Special.csv";
+                System.Diagnostics.Debug.Assert(File.Exists(filename));
+
+                using (StreamReader sr = new StreamReader(filename))
                 {
                     String line = sr.ReadLine();
                     lineNumber++;
@@ -136,7 +140,10 @@ namespace addresses
             try
             {
                 int lineNumber = 0;
-                using (StreamReader sr = new StreamReader("Data/TFTExport.csv"))
+                string filename = "../../Data/TFTExport.csv";
+                System.Diagnostics.Debug.Assert(File.Exists(filename));
+
+                using (StreamReader sr = new StreamReader(filename))
                 {
                     String line = sr.ReadLine();
                     lineNumber++;
@@ -192,7 +199,10 @@ namespace addresses
             rawPSData = new DataTable();
             try
             {
-                using (StreamReader sr = new StreamReader("Data/PS2017.csv"))
+                string filename = "../../Data/PS2017.csv";
+                System.Diagnostics.Debug.Assert(File.Exists(filename));
+
+                using (StreamReader sr = new StreamReader(filename))
                 {
                     String line = sr.ReadLine();
                     String[] header = SplitCSV(line);
@@ -890,7 +900,12 @@ namespace addresses
                         sb.Append("     " + _strBreak3Begin + " - " + _strBreak3End + Environment.NewLine);
                         sb.Append("     " + _strBreak4Begin + " - Zzz");
 
-                        StreamWriter swOut = new StreamWriter("Data/Breakout.txt");
+                        string directoryName;
+                        AppConfiguration.AppConfig.TryGetSetting("Data.OutputDir", out Setting dir);
+                        directoryName = dir.Value;
+
+                        Directory.CreateDirectory(directoryName);
+                        StreamWriter swOut = new StreamWriter(directoryName + "/Breakout.txt");
                         swOut.WriteLine(sb.ToString());
                         swOut.Close();
                         _currentOperation.Value = sb.ToString();
