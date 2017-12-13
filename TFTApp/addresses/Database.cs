@@ -19,9 +19,20 @@ namespace addresses
         private DataTable rawPSData;
         private DataTable rawSpecialData;
         ObservableString _currentOperation = ObservableString.Get("CurrentOperation");
+        private string _OutputDir, _InputDir;
 
         public Database()
         {
+            AppConfiguration.AppConfig.TryGetSetting("Data.InputDir", out Setting indir);
+            _InputDir = indir.Value;
+
+            if (!Directory.Exists(_InputDir))
+                throw new Exception("Input directory not found.");
+
+            AppConfiguration.AppConfig.TryGetSetting("Data.OutputDir", out Setting outdir);
+            _OutputDir = outdir.Value;
+            Directory.CreateDirectory(_OutputDir);
+
             Clear();
         }
 
@@ -80,7 +91,7 @@ namespace addresses
             try
             {
                 int lineNumber = 0;
-                string filename = "../../Data/Special.csv";
+                string filename = _InputDir + "/Special.csv";
                 System.Diagnostics.Debug.Assert(File.Exists(filename));
 
                 using (StreamReader sr = new StreamReader(filename))
@@ -140,7 +151,7 @@ namespace addresses
             try
             {
                 int lineNumber = 0;
-                string filename = "../../Data/TFTExport.csv";
+                string filename = _InputDir + "/TFTExport.csv";
                 System.Diagnostics.Debug.Assert(File.Exists(filename));
 
                 using (StreamReader sr = new StreamReader(filename))
@@ -199,7 +210,7 @@ namespace addresses
             rawPSData = new DataTable();
             try
             {
-                string filename = "../../Data/PS2017.csv";
+                string filename = _InputDir + "/PS2017.csv";
                 System.Diagnostics.Debug.Assert(File.Exists(filename));
 
                 using (StreamReader sr = new StreamReader(filename))
@@ -375,7 +386,7 @@ namespace addresses
                 e[ColumnName.BookNumber] = "Special";
                 e[ColumnName.PageNumber] = page++;
             }
-            WriteCSV("Data/SpecialOut.csv", Entries, false);
+            WriteCSV("SpecialOut.csv", Entries, false);
         }
 
         public void WriteBook1()
@@ -393,7 +404,7 @@ namespace addresses
                 e[ColumnName.BookNumber] = "1";
                 e[ColumnName.PageNumber] = page++;
             }
-            WriteCSV("Data/RegistrationBook.csv", Entries, false);
+            WriteCSV("RegistrationBook.csv", Entries, false);
         }
 
         public void WriteBook2()
@@ -412,7 +423,7 @@ namespace addresses
                 e[ColumnName.BookNumber] = "2";
                 e[ColumnName.PageNumber] = page++;
             }
-            WriteCSV("Data/RegistrationBook.csv", Entries, true);
+            WriteCSV("RegistrationBook.csv", Entries, true);
         }
 
         public void WriteBook3()
@@ -431,7 +442,7 @@ namespace addresses
                 e[ColumnName.BookNumber] = "3";
                 e[ColumnName.PageNumber] = page++;
             }
-            WriteCSV("Data/RegistrationBook.csv", Entries, true);
+            WriteCSV("RegistrationBook.csv", Entries, true);
         }
 
         public void WriteBook4()
@@ -449,7 +460,7 @@ namespace addresses
                 e[ColumnName.BookNumber] = "4";
                 e[ColumnName.PageNumber] = page++;
             }
-            WriteCSV("Data/RegistrationBook.csv", Entries, true);
+            WriteCSV("RegistrationBook.csv", Entries, true);
         }
 
         public void WriteTFTEmails()
@@ -461,7 +472,7 @@ namespace addresses
                             orderby myRow.Field<string>(ColumnName.ContactLastName)
                             select myRow;
 
-            WriteCSV("Data/TFTEmails.csv", Entries, false);
+            WriteCSV("TFTEmails.csv", Entries, false);
         }
 
         public void WriteProjectSmileInvitations()
@@ -473,7 +484,7 @@ namespace addresses
                                  orderby myRow.Field<string>(ColumnName.ContactLastName)
                                  select myRow;
 
-            WriteCSV("Data/PSInvitations.csv", PSEntries, false);
+            WriteCSV("PSInvitations.csv", PSEntries, false);
         }
 
         private string Pretty(string txt)
@@ -731,7 +742,7 @@ namespace addresses
         #endregion
         public void WriteCSV(string filename, OrderedEnumerableRowCollection<DataRow> data, bool bAppend)
         {
-            StreamWriter swOut = new StreamWriter(filename, bAppend);
+            StreamWriter swOut = new StreamWriter(_OutputDir + '/' + filename, bAppend);
 
             if (!bAppend)
             {
@@ -898,14 +909,10 @@ namespace addresses
                         sb.Append("     " + "A - " + _strBreak1End + Environment.NewLine);
                         sb.Append("     " + _strBreak2Begin + " - " + _strBreak2End + Environment.NewLine);
                         sb.Append("     " + _strBreak3Begin + " - " + _strBreak3End + Environment.NewLine);
-                        sb.Append("     " + _strBreak4Begin + " - Zzz");
+                        sb.Append("     " + _strBreak4Begin + " - Zzz");                        
 
-                        string directoryName;
-                        AppConfiguration.AppConfig.TryGetSetting("Data.OutputDir", out Setting dir);
-                        directoryName = dir.Value;
-
-                        Directory.CreateDirectory(directoryName);
-                        StreamWriter swOut = new StreamWriter(directoryName + "/Breakout.txt");
+                        Directory.CreateDirectory(_OutputDir);
+                        StreamWriter swOut = new StreamWriter(_OutputDir + "/Breakout.txt");
                         swOut.WriteLine(sb.ToString());
                         swOut.Close();
                         _currentOperation.Value = sb.ToString();
