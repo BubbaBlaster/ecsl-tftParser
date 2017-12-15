@@ -525,6 +525,7 @@ namespace addresses
                         row[col.ColumnName] = rawRow[col.ColumnName];
                 }
                 GenerateRegistrationData(row);
+                CorrectPhone(row);
 
                 // This will randomly distribute Project Smile families
                 int timeSlotIndex = (index++) % 4; 
@@ -547,6 +548,17 @@ namespace addresses
                     
                 }
                 GenerateRegistrationData(row);
+
+                row[ColumnName.Total] = int.Parse((string)row[ColumnName.Boys_0_2]) +
+                    int.Parse((string)row[ColumnName.Boys_3_6]) +
+                    int.Parse((string)row[ColumnName.Boys_7_11]) +
+                    int.Parse((string)row[ColumnName.Boys_12_16]) +
+                    int.Parse((string)row[ColumnName.Boys_17]) +
+                    int.Parse((string)row[ColumnName.Girls_0_2]) +
+                    int.Parse((string)row[ColumnName.Girls_3_6]) +
+                    int.Parse((string)row[ColumnName.Girls_7_11]) +
+                    int.Parse((string)row[ColumnName.Girls_12_16]) +
+                    int.Parse((string)row[ColumnName.Girls_17]);
 
                 // This will put TFT families in the order of entry
                 int timeSlotIndex = (int)((double)(index++) / (double)(totalRows / 4.0f)); 
@@ -575,6 +587,22 @@ namespace addresses
             }
 
             _currentOperation.Value = "Merging - Done";
+        }
+
+        private void CorrectPhone(DataRow row)
+        {
+            string phoneString(string input)
+            {                
+                var result = Regex.Replace(input, @"\D", "");
+                if (result.Length == 10)
+                    return result.Substring(0, 3) + '-' +
+                        result.Substring(3, 3) + '-' +
+                        result.Substring(6, 4);
+                return input;
+            }
+
+            row[ColumnName.Phone] = phoneString((string)row[ColumnName.Phone]);
+            row[ColumnName.SecondaryPhone] = phoneString((string)row[ColumnName.SecondaryPhone]);
         }
 
         private void GenerateRegistrationData(DataRow r)
@@ -922,6 +950,50 @@ namespace addresses
                         return;
                 }
             }            
+        }
+
+        public void CheckDuplicates()
+        {
+            CheckForSimilarChildren();
+            //CheckForDuplicatePhones();
+            //CheckForDuplicateAddress();
+            //CheckForDuplicateStreet();
+        }
+
+        private void CheckForSimilarChildren()
+        {
+            foreach(DataRow r in this.Data.Rows)
+            {
+                (string []children, int numChildren) = GetChildren(r);
+            }
+        }
+
+        private (string [], int) GetChildren(DataRow r)
+        {
+            char[] sep = { ',' };
+            List<string> children = new List<string>();
+            foreach (var s in ((string)r[ColumnName.Boys_0_2_Names]).Split(sep))
+                children.Add(s);
+            foreach (var s in ((string)r[ColumnName.Boys_3_6_Names]).Split(sep))
+                children.Add(s);
+            foreach (var s in ((string)r[ColumnName.Boys_7_11_Names]).Split(sep))
+                children.Add(s);
+            foreach (var s in ((string)r[ColumnName.Boys_12_16_Names]).Split(sep))
+                children.Add(s);
+            foreach (var s in ((string)r[ColumnName.Boys_17_Names]).Split(sep))
+                children.Add(s);
+            foreach (var s in ((string)r[ColumnName.Girls_0_2_Names]).Split(sep))
+                children.Add(s);
+            foreach (var s in ((string)r[ColumnName.Girls_3_6_Names]).Split(sep))
+                children.Add(s);
+            foreach (var s in ((string)r[ColumnName.Girls_7_11_Names]).Split(sep))
+                children.Add(s);
+            foreach (var s in ((string)r[ColumnName.Girls_12_16_Names]).Split(sep))
+                children.Add(s);
+            foreach (var s in ((string)r[ColumnName.Girls_17_Names]).Split(sep))
+                children.Add(s);
+
+            return ((string[])children.ToArray(), (int)children.Count);
         }
     }
 }

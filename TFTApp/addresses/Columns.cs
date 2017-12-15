@@ -17,7 +17,7 @@ namespace addresses
         public const string ID = "ID";
         public const string Status = "Status";
         //public const string Group = "Group";
-        //public const string pDup = "pDup";
+        public const string pDup = "pDup";
         public const string Address = "Address";
         public const string City = "City";
 		public const string State = "State";
