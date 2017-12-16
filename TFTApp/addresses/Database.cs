@@ -54,6 +54,8 @@ namespace addresses
 
             WriteProjectSmileInvitations();
             WriteTFTEmails();
+
+            CheckDuplicates();
         }
 
         private void Clear()
@@ -94,7 +96,8 @@ namespace addresses
                 string filename = _InputDir + "/Special.csv";
                 System.Diagnostics.Debug.Assert(File.Exists(filename));
 
-                using (StreamReader sr = new StreamReader(filename))
+                using (var fs = new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                using (var sr = new StreamReader(fs, Encoding.Default))
                 {
                     String line = sr.ReadLine();
                     lineNumber++;
@@ -154,7 +157,8 @@ namespace addresses
                 string filename = _InputDir + "/TFTExport.csv";
                 System.Diagnostics.Debug.Assert(File.Exists(filename));
 
-                using (StreamReader sr = new StreamReader(filename))
+                using(var fs = new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                using (var sr = new StreamReader(fs, Encoding.Default))
                 {
                     String line = sr.ReadLine();
                     lineNumber++;
@@ -213,7 +217,8 @@ namespace addresses
                 string filename = _InputDir + "/PS2017.csv";
                 System.Diagnostics.Debug.Assert(File.Exists(filename));
 
-                using (StreamReader sr = new StreamReader(filename))
+                using (var fs = new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                using (var sr = new StreamReader(fs, Encoding.Default))
                 {
                     String line = sr.ReadLine();
                     String[] header = SplitCSV(line);
@@ -548,6 +553,7 @@ namespace addresses
                     
                 }
                 GenerateRegistrationData(row);
+                CorrectPhone(row);
 
                 row[ColumnName.Total] = int.Parse((string)row[ColumnName.Boys_0_2]) +
                     int.Parse((string)row[ColumnName.Boys_3_6]) +
@@ -580,6 +586,8 @@ namespace addresses
 
                 }
                 GenerateRegistrationData(row);
+                CorrectPhone(row);
+
                 row[ColumnName.TimeSlotIndex] = 3;
                 row[ColumnName.TimeSlot] = timeSlot[3]; // All special handling go into final timeslot
 
@@ -954,46 +962,224 @@ namespace addresses
 
         public void CheckDuplicates()
         {
-            CheckForSimilarChildren();
-            //CheckForDuplicatePhones();
+            FindSimilarChildrenLists();
+            CheckForDuplicatePhones();            
+
             //CheckForDuplicateAddress();
             //CheckForDuplicateStreet();
         }
 
-        private void CheckForSimilarChildren()
+        private Dictionary<string, Dictionary<string, string>> dictControlNumberProperties = new Dictionary<string, Dictionary<string, string>>();
+        private void CheckForDuplicatePhones()
         {
-            foreach(DataRow r in this.Data.Rows)
+            _currentOperation.Value = "Checking for Similar Entries";
+            System.Threading.Thread.Sleep(100);
+            string FirstNumberInString(string s)
             {
-                (string []children, int numChildren) = GetChildren(r);
+                string numString = string.Empty;
+                foreach(char c in s)
+                {
+                    if (char.IsNumber(c))
+                        numString += c;
+                    else
+                        break;
+                }
+                return numString;
             }
+            string StringAfterNumber(string s)
+            {
+                int index = 0;
+                foreach(char c in s)
+                {
+                    if (char.IsNumber(c))
+                        index++;
+                    else break;
+                }
+                return s.Substring(index).Trim();
+            }
+
+            int currentProgress = -1;
+            int progress = 0;
+            _currentOperation.Value = "Checking for Similar Children";
+            foreach (DataRow r1 in this.Data.Rows)
+            {
+                progress++;
+                if (currentProgress != (int)((double)progress / (double)Data.Rows.Count * 10f))
+                {
+                    currentProgress = (int)((double)progress / (double)Data.Rows.Count * 10f);
+                    _currentOperation.Value = currentProgress.ToString();
+                    System.Threading.Thread.Sleep(100);
+                }
+                string cn = (string)r1[ColumnName.ControlNumber];
+                if (!dictControlNumberProperties.ContainsKey(cn))
+                    dictControlNumberProperties[cn] = new Dictionary<string, string>();
+                var td = dictControlNumberProperties[cn];
+                td["streetNum"] = FirstNumberInString((string)r1[ColumnName.Address]);
+                td["streetName"] = Pretty(StringAfterNumber((string)r1[ColumnName.Address]));
+                td["phone"] = (string)r1[ColumnName.Phone];
+                td["email"] = (string)r1[ColumnName.Email];
+                td["nameComposite"] = (((string)r1[ColumnName.ContactFirstName]) + "---").Substring(0, 3).ToUpper() +
+                                      (((string)r1[ColumnName.ContactLastName]) + "---").Substring(0, 3).ToUpper();
+                td["SimilarEntryIssues"] = string.Empty;
+            }
+
+            progress = 0;
+            currentProgress = -1;
+            foreach (var tuple1 in dictControlNumberProperties)
+            {
+                progress++;
+                if (currentProgress != (int)((double)progress / (double)dictControlNumberToChildrenIndex.Count * 10f))
+                {
+                    currentProgress = (int)((double)progress / (double)dictControlNumberToChildrenIndex.Count * 10f);
+                    _currentOperation.Value = currentProgress.ToString();
+                }
+                foreach (var tuple2 in dictControlNumberProperties)
+                {
+                    if (tuple1.Key == tuple2.Key) continue;
+
+                    if( tuple1.Value["streetNum"].Length > 0 && tuple1.Value["streetNum"] == tuple2.Value["streetNum"] &&
+                        tuple1.Value["streetName"].Length > 5 && tuple1.Value["streetName"] == tuple2.Value["streetName"] ||
+                        tuple1.Value["phone"].Length > 5 && tuple1.Value["phone"] == tuple2.Value["phone"] ||
+                        tuple1.Value["email"].Length > 5 && tuple1.Value["email"] == tuple2.Value["email"] )
+                    {
+                        HashSet<int> merged = new HashSet<int>();
+                        foreach (var val in dictControlNumberToChildrenIndex[tuple1.Key]) merged.Add(val);
+                        foreach (var val in dictControlNumberToChildrenIndex[tuple2.Key]) merged.Add(val);
+
+                        if (merged.Count < dictControlNumberToChildrenIndex[tuple1.Key].Length + dictControlNumberToChildrenIndex[tuple2.Key].Length)
+                            dictControlNumberProperties[tuple1.Key]["SimilarEntryIssues"] += tuple2.Key +
+                                "(" + dictControlNumberProperties[tuple2.Key]["index"] + "),";
+                    }
+                }
+            }
+
+            StreamWriter sw = new StreamWriter(_OutputDir + "/SimilarEntryIssues.dat");
+            foreach (var tuple in dictControlNumberProperties)
+            {
+                if (!string.IsNullOrEmpty(tuple.Value["SimilarEntryIssues"]))
+                    sw.WriteLine(tuple.Key + "(" + tuple.Value["index"] + ") : " + tuple.Value["SimilarEntryIssues"]);
+            }
+            sw.Close();
         }
 
-        private (string [], int) GetChildren(DataRow r)
+        #region SimilarChildrenListFinder
+        private Dictionary<string, int[]> dictControlNumberToChildrenIndex = new Dictionary<string, int[]>();
+
+        public void FindSimilarChildrenLists()
+        {
+            int currentProgress = -1;
+            int progress = 0;
+            _currentOperation.Value = "Checking for Similar Children";
+            foreach (DataRow r in this.Data.Rows)
+            {
+                progress++;
+                if (currentProgress != (int)((double)progress / (double)Data.Rows.Count * 10f))
+                {
+                    currentProgress = (int)((double)progress / (double)Data.Rows.Count * 10f);
+                    _currentOperation.Value = currentProgress.ToString();
+                    System.Threading.Thread.Sleep(100);
+                }
+                (int[] nameIndexes, int numChildren) = GetChildren(r);
+                string cn = (string)r[ColumnName.ControlNumber];
+                dictControlNumberToChildrenIndex[cn] = nameIndexes;
+                dictControlNumberProperties[cn] = new Dictionary<string, string>();
+                dictControlNumberProperties[cn]["ChildrenDupsIssue"] = string.Empty;
+                dictControlNumberProperties[cn]["index"] = (string)r[ColumnName.BookNumber] + ',' + (string)r[ColumnName.PageNumber];
+            }
+            _currentOperation.Value = " - Clearing Dups List ";
+            foreach (var tuple1 in dictControlNumberToChildrenIndex)
+            {
+                if(!dictControlNumberProperties.ContainsKey(tuple1.Key) )
+                    dictControlNumberProperties[tuple1.Key] = new Dictionary<string, string>();
+                
+            }
+
+            progress = 0;
+            currentProgress = -1;
+            foreach (var tuple1 in dictControlNumberToChildrenIndex)
+            {
+                progress++;
+                if (currentProgress != (int)((double)progress / (double)dictControlNumberToChildrenIndex.Count * 10f))
+                {
+                    currentProgress = (int)((double)progress / (double)dictControlNumberToChildrenIndex.Count * 10f);
+                    _currentOperation.Value = currentProgress.ToString();
+                }
+                if (tuple1.Value.Length > 2)
+                {
+                    foreach (var tuple2 in dictControlNumberToChildrenIndex)
+                    {
+                        if (tuple2.Value.Length < 3 ||
+                            tuple2.Key == tuple1.Key) continue;
+
+                        HashSet<int> merged = new HashSet<int>();
+                        foreach (var val in tuple1.Value) merged.Add(val);
+                        foreach (var val in tuple2.Value) merged.Add(val);
+
+                        if (merged.Count < .7 * (tuple1.Value.Length + tuple2.Value.Length))
+                            dictControlNumberProperties[tuple1.Key]["ChildrenDupsIssue"] += tuple2.Key + '(' + dictControlNumberProperties[tuple2.Key]["index"] + "),";
+                    }
+                }
+            }
+
+            StreamWriter sw = new StreamWriter(_OutputDir + "/ChildrenDupsIssues.dat");
+            foreach (var tuple in dictControlNumberProperties)
+            {
+                if (!string.IsNullOrEmpty(tuple.Value["ChildrenDupsIssue"]))
+                    sw.WriteLine(tuple.Key + '(' + tuple.Value["index"] +") : " + tuple.Value["ChildrenDupsIssue"]);
+            }
+            sw.Close();
+        }
+
+        private Dictionary<string, int> dictNameToIndex = new Dictionary<string, int>();
+        private Dictionary<int, string> dictIndexToName = new Dictionary<int, string>();
+        private int countChildren = 0;
+
+        private (int[], int) GetChildren(DataRow r)
         {
             char[] sep = { ',' };
-            List<string> children = new List<string>();
-            foreach (var s in ((string)r[ColumnName.Boys_0_2_Names]).Split(sep))
-                children.Add(s);
-            foreach (var s in ((string)r[ColumnName.Boys_3_6_Names]).Split(sep))
-                children.Add(s);
-            foreach (var s in ((string)r[ColumnName.Boys_7_11_Names]).Split(sep))
-                children.Add(s);
-            foreach (var s in ((string)r[ColumnName.Boys_12_16_Names]).Split(sep))
-                children.Add(s);
-            foreach (var s in ((string)r[ColumnName.Boys_17_Names]).Split(sep))
-                children.Add(s);
-            foreach (var s in ((string)r[ColumnName.Girls_0_2_Names]).Split(sep))
-                children.Add(s);
-            foreach (var s in ((string)r[ColumnName.Girls_3_6_Names]).Split(sep))
-                children.Add(s);
-            foreach (var s in ((string)r[ColumnName.Girls_7_11_Names]).Split(sep))
-                children.Add(s);
-            foreach (var s in ((string)r[ColumnName.Girls_12_16_Names]).Split(sep))
-                children.Add(s);
-            foreach (var s in ((string)r[ColumnName.Girls_17_Names]).Split(sep))
-                children.Add(s);
+            List<string> childrenNames = new List<string>();
+            string[] colNames = { ColumnName.Boys_0_2_Names,
+                                    ColumnName.Boys_3_6_Names,
+                                    ColumnName.Boys_7_11_Names,
+                                    ColumnName.Boys_12_16_Names,
+                                    ColumnName.Boys_17_Names,
+                                    ColumnName.Girls_0_2_Names,
+                                    ColumnName.Girls_3_6_Names,
+                                    ColumnName.Girls_7_11_Names,
+                                    ColumnName.Girls_12_16_Names,
+                                    ColumnName.Girls_17_Names};
+            foreach (var colName in colNames)
+                foreach (var s in ((string)r[colName]).Split(sep))
+                {
+                    string sTrimmed = s.Trim();
+                    if (sTrimmed.Length != 0)
+                        childrenNames.Add(s.Trim());
+                }
 
-            return ((string[])children.ToArray(), (int)children.Count);
+            int[] childrenIndexes = new int[childrenNames.Count];
+            int index = 0;
+
+            foreach (var name in childrenNames)
+            {
+
+                if (dictNameToIndex.TryGetValue(name, out int nameIndex))
+                {
+                    childrenIndexes[index] = nameIndex;
+                    index++;
+                }
+                else
+                {
+                    int newIndex = countChildren++;
+                    dictNameToIndex.Add(name, newIndex);
+                    dictIndexToName.Add(newIndex, name);
+
+                    childrenIndexes[index] = newIndex;
+                    index++;
+                }
+            }
+
+            return (childrenIndexes, (int)childrenNames.Count);
         }
+    #endregion
     }
 }

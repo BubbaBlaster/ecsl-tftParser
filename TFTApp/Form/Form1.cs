@@ -64,14 +64,14 @@ namespace TFT
             dataGridView1.DoubleBuffered(true);
         }
 
-        private void exitToolStripMenuItem_Click(object sender, EventArgs e)
+        private void ExitToolStripMenuItem_Click(object sender, EventArgs e)
         {
             Application.Exit();
         }
 
         AddressParser ap = new addresses.AddressParser();
 
-        private void dataGridView1_CellValueChanged(object sender, DataGridViewCellEventArgs e)
+        private void DataGridView1_CellValueChanged(object sender, DataGridViewCellEventArgs e)
         {
             var row = dataGridView1.Rows[e.RowIndex];
             var RowKey = row.Cells[ColumnName.ControlNumber].Value;
@@ -125,7 +125,7 @@ namespace TFT
                    "Other (" + numOtherEntries + "/" + numOtherChildren + ")";
         }
 
-        private void computeSectionsToolStripMenuItem_Click(object sender, EventArgs e)
+        private void ComputeSectionsToolStripMenuItem_Click(object sender, EventArgs e)
         {
             MessageBox.Show("Breakout at 'A-" + DB._strBreak1End + "' --- '" + 
                 DB._strBreak2Begin + "-" + DB._strBreak2End + "' --- '" +
@@ -133,7 +133,7 @@ namespace TFT
                 DB._strBreak4Begin + "-Z'");
         }
 
-        private void noShowsToolStripMenuItem_Click(object sender, EventArgs e)
+        private void NoShowsToolStripMenuItem_Click(object sender, EventArgs e)
         {
             using (var ns = new NoShowProcessor())
             {
@@ -141,7 +141,7 @@ namespace TFT
             }
         }
 
-        private void top5OrganizationsToolStripMenuItem_Click(object sender, EventArgs e)
+        private void Top5OrganizationsToolStripMenuItem_Click(object sender, EventArgs e)
         {
             using (var d = new Top5Analysis(DB.Data))
             {
