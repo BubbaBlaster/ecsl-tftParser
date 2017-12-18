@@ -91,6 +91,7 @@ namespace addresses
             Email,
             Guardian,
             Total,
+            pDup,
             Boys_0_2,
             Boys_0_2_Names,
             Girls_0_2,

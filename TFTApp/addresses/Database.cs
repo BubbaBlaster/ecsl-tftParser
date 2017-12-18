@@ -38,24 +38,93 @@ namespace addresses
 
         public void Initialize()
         {
-            _currentOperation.Value = "Initializing Database";
-            ReadTFTRawData();
-            ReadPSRawData();
-            ReadSpecialRawData();
-            Merge();
+            try
+            {
+                _currentOperation.Value = "Initializing Database";
+                ReadTFTRawData();
+                ReadPSRawData();
+                ReadSpecialRawData();
+                Merge();
 
-            ComputeBreakOut();
+                ComputeBreakOut();
 
-            WriteBook1();
-            WriteBook2();
-            WriteBook3();
-            WriteBook4();
-            WriteSpecial();
+                WriteBook1();
+                WriteBook2();
+                WriteBook3();
+                WriteBook4();
+                WriteSpecial();
 
-            WriteProjectSmileInvitations();
-            WriteTFTEmails();
+                WriteProjectSmileInvitations();
+                WriteTFTEmails();
 
-            CheckDuplicates();
+                CheckDuplicates();
+
+                ComputeNoShows();
+            }
+            catch(Exception e)
+            {
+                _log.Fatal(e, "Exception while creating database.");
+            }
+        }
+
+        private void ComputeNoShows()
+        {
+            int lineNumber = 0;
+            int totalKidsNoShow = 0;
+            int totalKidsNoShowPS = 0;
+            int totalKidsNoShowTFT = 0;
+            int totalRegistrations = Data.Rows.Count;
+            int totalRegNoShowPS = 0;
+            int totalRegNoShowTFT = 0;
+
+            string filename = _InputDir + "/NoShows.csv";
+
+            if (!File.Exists(filename)) return;
+
+            using (var fs = new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+            using (var sr = new StreamReader(fs, Encoding.Default))
+            {
+                do
+                {
+                    String cn = sr.ReadLine();
+                    lineNumber++;
+                    if (cn.Length > 0)
+                    {
+                        DataRow row = Data.Rows.Find(cn);
+                        if (row == null)
+                        {
+                            _log.Warning("cn = '" + cn + "' - Does not exist.");
+                            continue;
+                        }
+                        row[ColumnName.pDup] = "N";
+                        int kids = int.Parse((string)row[ColumnName.Total]);
+                        totalKidsNoShow += kids;
+                        if (String.Compare("Project Smile",(string)row[ColumnName.Organization]) == 0)
+                        {
+                            totalKidsNoShowPS += kids;
+                            totalRegNoShowPS++;
+                        }
+                        else
+                        {
+                            totalKidsNoShowTFT += kids;
+                            totalRegNoShowTFT++;
+                        }
+                    }
+                } while (!sr.EndOfStream);
+            }
+
+            StreamWriter sw = new StreamWriter(_OutputDir + "/NoShowsStatistics.csv");
+            sw.WriteLine("Total Num Kids," + _totalKids);
+            sw.WriteLine("Total NoShows Kids," + totalKidsNoShow);
+            sw.WriteLine("Project Smile NoShows Kids," + totalKidsNoShowPS + "," + 100f * totalKidsNoShowPS / _totalKidsPS + "%\n");
+            sw.WriteLine("TFT NoShows Kids = " + totalKidsNoShowTFT + "," + 100f * totalKidsNoShowTFT / _totalKidsTFT + "%\n");
+
+            sw.WriteLine("Total Num Registrations," + totalRegistrations);
+            sw.WriteLine("Total NoShow PS," + totalRegNoShowPS + "," + 100f * totalRegNoShowPS / _totalRegPS + "%\n");
+            sw.WriteLine("Total NoShow TFT," + totalRegNoShowTFT + "," + 100f * totalRegNoShowTFT / _totalRegTFT + "%\n");
+            sw.Close();
+
+            WriteProjectNoShows();
         }
 
         private void Clear()
@@ -107,6 +176,7 @@ namespace addresses
                         string columnName = header[i] = header[i].Trim(new char[] { '"', '\\', ',' });
                         rawSpecialData.Columns.Add(columnName);
                     }
+                    rawSpecialData.Columns.Add(ColumnName.Organization);
                     rawSpecialData.PrimaryKey = new DataColumn[1] { rawSpecialData.Columns[ColumnName.ControlNumber] };
 
                     bool go = true;
@@ -129,6 +199,7 @@ namespace addresses
                                 row[header[ii]] = Pretty(tag);
                             }
                             row["State"] = "Texas";
+                            row["Organization"] = string.Empty;
 
                             rawSpecialData.Rows.Add(row);
                         }
@@ -168,6 +239,7 @@ namespace addresses
                         string columnName = header[i] = header[i].Trim(new char[] { '"', '\\', ',' });
                         rawTFTData.Columns.Add(columnName);
                     }
+                    rawTFTData.Columns.Add(ColumnName.Organization);
                     rawTFTData.PrimaryKey = new DataColumn[1] { rawTFTData.Columns[ColumnName.ControlNumber] };
 
                     bool go = true;
@@ -190,6 +262,7 @@ namespace addresses
                                 row[header[ii]] = Pretty(tag);
                             }
                             row["State"] = "Texas";
+                            row["Organization"] = string.Empty;
 
                             rawTFTData.Rows.Add(row);
                         }
@@ -492,6 +565,19 @@ namespace addresses
             WriteCSV("PSInvitations.csv", PSEntries, false);
         }
 
+        public void WriteProjectNoShows()
+        {
+            _currentOperation.Value = "Writing Project Smile No Shows";
+            var PSEntries = from myRow in Data.AsEnumerable()
+                            where (myRow.Field<string>(ColumnName.Organization) == "Project Smile" &&
+                              !myRow.Field<string>(ColumnName.ControlNumber).Contains("S") &&
+                              myRow.Field<string>(ColumnName.pDup) == "N")
+                            orderby myRow.Field<string>(ColumnName.ContactLastName)
+                            select myRow;
+
+            WriteCSV("PSNoShows.csv", PSEntries, false);
+        }
+
         private string Pretty(string txt)
         {
             string[] words = txt.ToLower().Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
@@ -535,7 +621,7 @@ namespace addresses
                 // This will randomly distribute Project Smile families
                 int timeSlotIndex = (index++) % 4; 
                 row[ColumnName.TimeSlotIndex] = timeSlotIndex;
-                row[ColumnName.TimeSlot] = timeSlot[timeSlotIndex];  
+                row[ColumnName.TimeSlot] = timeSlot[timeSlotIndex];
 
                 Data.Rows.Add(row);
             }
@@ -592,6 +678,22 @@ namespace addresses
                 row[ColumnName.TimeSlot] = timeSlot[3]; // All special handling go into final timeslot
 
                 Data.Rows.Add(row);
+            }
+
+            foreach(DataRow r in Data.Rows)
+            {
+                r[ColumnName.Total] = (
+                    Int32.Parse((string)r[ColumnName.Boys_0_2]) +
+                    Int32.Parse((string)r[ColumnName.Boys_3_6]) +
+                    Int32.Parse((string)r[ColumnName.Boys_7_11]) +
+                    Int32.Parse((string)r[ColumnName.Boys_12_16]) +
+                    Int32.Parse((string)r[ColumnName.Boys_17]) +
+                    Int32.Parse((string)r[ColumnName.Girls_0_2]) +
+                    Int32.Parse((string)r[ColumnName.Girls_3_6]) +
+                    Int32.Parse((string)r[ColumnName.Girls_7_11]) +
+                    Int32.Parse((string)r[ColumnName.Girls_12_16]) +
+                    Int32.Parse((string)r[ColumnName.Girls_17])
+                    ).ToString();
             }
 
             _currentOperation.Value = "Merging - Done";
@@ -833,7 +935,12 @@ namespace addresses
                 _totalGirls_3_6 = 0,
                 _totalGirls_7_11 = 0,
                 _totalGirls_12_16 = 0,
-                _totalGirls_17 = 0;
+                _totalGirls_17 = 0,
+                _totalKids = 0,
+                _totalKidsPS = 0,
+                _totalKidsTFT = 0,
+                _totalRegPS = 0,
+                _totalRegTFT = 0;
 
         public void ComputeBreakOut()
         {
@@ -843,7 +950,7 @@ namespace addresses
                                   orderby myRow.Field<string>(ColumnName.ContactLastName)
                                   select myRow;
             // Compute Totals
-            int totalKids = 0;
+            _totalKids = 0;
             _totalBoys_0_2 = 0;
             _totalBoys_3_6 = 0;
             _totalBoys_7_11 = 0;
@@ -854,8 +961,23 @@ namespace addresses
             _totalGirls_7_11 = 0;
             _totalGirls_12_16 = 0;
             _totalGirls_17 = 0;
+            _totalKids = 0;
+            _totalKidsPS = 0;
+            _totalKidsTFT = 0;
+            _totalRegPS = 0;
+            _totalRegTFT = 0;
             foreach (var e in pendingEntries)
             {
+                if (e.Field<string>(ColumnName.Organization) == "Project Smile")
+                {
+                    _totalKidsPS += Int32.Parse(e.Field<string>(ColumnName.Total));
+                    _totalRegPS++;
+                }
+                else
+                {
+                    _totalKidsTFT += Int32.Parse(e.Field<string>(ColumnName.Total));
+                    _totalRegTFT++;
+                }
                 _totalBoys_0_2 += Int32.Parse(e.Field<string>(ColumnName.Boys_0_2));
                 _totalBoys_3_6 += Int32.Parse(e.Field<string>(ColumnName.Boys_3_6));
                 _totalBoys_7_11 += Int32.Parse(e.Field<string>(ColumnName.Boys_7_11));
@@ -867,15 +989,28 @@ namespace addresses
                 _totalGirls_12_16 += Int32.Parse(e.Field<string>(ColumnName.Girls_12_16));
                 _totalGirls_17 += Int32.Parse(e.Field<string>(ColumnName.Girls_17));
             }
-            totalKids += _totalBoys_0_2 + _totalBoys_3_6 + _totalBoys_7_11 + _totalBoys_12_16 + _totalBoys_17 +
+            _totalKids += _totalBoys_0_2 + _totalBoys_3_6 + _totalBoys_7_11 + _totalBoys_12_16 + _totalBoys_17 +
                 _totalGirls_0_2 + _totalGirls_3_6 + _totalGirls_7_11 + _totalGirls_12_16 + _totalGirls_17;
 
+            StreamWriter sw = new StreamWriter(_OutputDir + "/RegistrationStatistics.csv");
+
+            sw.WriteLine("Total_Registrations," + Data.Rows.Count);
+            sw.WriteLine("Total Accepted," + pendingEntries.Count());
+            sw.WriteLine("Total Accepted PS," + _totalRegPS);
+            sw.WriteLine("Total Accepted TFT," + _totalRegTFT);
             _currentOperation.Value =
-                "\t0-2\t3-6\t7_11\t12-16\t17" + Environment.NewLine +
-                "Boys\t" + _totalBoys_0_2 + '\t' + _totalBoys_3_6 + '\t' + _totalBoys_7_11 + '\t' + _totalBoys_12_16 + '\t' + _totalBoys_17 + Environment.NewLine +
-                "Girls\t" + _totalGirls_0_2 + '\t' + _totalGirls_3_6 + '\t' + _totalGirls_7_11 + '\t' + _totalGirls_12_16 + '\t' + _totalGirls_17 + Environment.NewLine +
-                "Total\t" + (_totalGirls_0_2 + _totalBoys_0_2) + '\t' + (_totalGirls_3_6 + _totalBoys_3_6) + '\t' + (_totalGirls_7_11 + _totalBoys_7_11) + '\t' +
-                            (_totalGirls_12_16 + _totalBoys_12_16) + '\t' + (_totalGirls_17 + _totalBoys_17);
+                "Gender,0-2,3_6,7_11,12_16,17" + Environment.NewLine +
+                "Boys," + _totalBoys_0_2 + ',' + _totalBoys_3_6 + ',' + _totalBoys_7_11 + ',' + _totalBoys_12_16 + ',' + _totalBoys_17 + Environment.NewLine +
+                "Girls," + _totalGirls_0_2 + ',' + _totalGirls_3_6 + ',' + _totalGirls_7_11 + ',' + _totalGirls_12_16 + ',' + _totalGirls_17 + Environment.NewLine +
+                "Total," + (_totalGirls_0_2 + _totalBoys_0_2) + ',' + (_totalGirls_3_6 + _totalBoys_3_6) + ',' + (_totalGirls_7_11 + _totalBoys_7_11) + ',' +
+                            (_totalGirls_12_16 + _totalBoys_12_16) + ',' + (_totalGirls_17 + _totalBoys_17);
+
+            sw.WriteLine(_currentOperation.Value);
+            sw.WriteLine("Total Kids," + _totalKids);
+            sw.WriteLine("Total Kids PS," + _totalKidsPS);
+            sw.WriteLine("Total Kids TFT," + _totalKidsTFT);
+
+            sw.Close();
 
             int n = 0;
             int state = 0;
@@ -896,7 +1031,7 @@ namespace addresses
                 switch (state)
                 {
                     case 0:
-                        if (state == 0 && n > totalKids / 4)
+                        if (state == 0 && n > _totalKids / 4)
                         {
                             _strBreak1End = strLastName;
                             state++;
@@ -911,7 +1046,7 @@ namespace addresses
                         }
                         break;
                     case 2:
-                        if (n > 2 * totalKids / 4)
+                        if (n > 2 * _totalKids / 4)
                         {
                             _strBreak2End = strLastName;
                             state++;
@@ -926,7 +1061,7 @@ namespace addresses
                         }
                         break;
                     case 4:
-                        if (n > 3 * totalKids / 4)
+                        if (n > 3 * _totalKids / 4)
                         {
                             _strBreak3End = strLastName;
                             state++;
