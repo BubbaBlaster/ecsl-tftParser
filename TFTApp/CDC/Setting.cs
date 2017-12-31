@@ -7,36 +7,35 @@ using System.IO;
 using System.Linq;
 using System.Security;
 using System.Text;
-using System.Xml;
-using System.Xml.Serialization;
+using Newtonsoft.Json;
 
 namespace CDC.Configuration
 {
-    public class Setting : IXmlSerializable
+    public class Setting
     {
-        public Setting() 
+        public Setting()
         {
             Settings = new Dictionary<string, Setting>();
         }
 
-        public void Add(string name, string value, string description = "")
+        public void Add(string name, string value)
         {
-            Setting setting = new Setting() { Name = name, Value = value, Description = description };
-            Add(setting);
+            Setting setting = new Setting() { Value = value };
+            Add(name, setting);
         }
 
-        public void Add(Setting setting)
+        public void Add(string Name, Setting setting)
         {
-            if (Settings.ContainsKey(setting.Name))
-                Settings[setting.Name] = setting;
+            if (Settings.ContainsKey(Name))
+                Settings[Name] = setting;
             else
-                Settings.Add(setting.Name, setting);
+                Settings.Add(Name, setting);
         }
 
         public override bool Equals(System.Object obj)
         {
             // If parameter is null return false.
-            if (obj == null) 
+            if (obj == null)
                 return false;
 
             // If parameter cannot be cast to Point return false.
@@ -54,15 +53,13 @@ namespace CDC.Configuration
                 return false;
 
             // Return true if the fields match:
-            if (!string.Equals(Name, p.Name) ||
-                !string.Equals(Value, p.Value) ||
-                !string.Equals(Description, p.Description) ||
+            if (!string.Equals(Value, p.Value) ||
                 Settings.Count != p.Settings.Count)
                 return false;
 
             var pSetting = p.Settings.Values.GetEnumerator();
             pSetting.MoveNext();
-            foreach(var s in Settings.Values)
+            foreach (var s in Settings.Values)
             {
                 if (!s.Equals(pSetting.Current)) return false;
                 pSetting.MoveNext();
@@ -71,14 +68,7 @@ namespace CDC.Configuration
             return true;
         }
 
-        public override int GetHashCode()
-        {
-            return (Name + Value + Description).GetHashCode();
-        }
-
         public string Value { get; set; }
-        public string Name { get; set; }
-        public string Description { get; set; }
         public Dictionary<string, Setting> Settings { get; set; }
 
         [ExcludeFromCodeCoverage]
@@ -140,6 +130,23 @@ namespace CDC.Configuration
             }
         }
 
+        private void MergeSettings(Setting s)
+        {
+            foreach(var setting in s.Settings)
+            {
+                if (Settings.TryGetValue(setting.Key, out Setting existing))
+                {
+                    if (existing.Value != setting.Value.Value)
+                        throw new DuplicateSettingException(setting.Key);
+                    existing.MergeSettings(setting.Value);
+                }
+                else
+                {
+                    Settings.Add(setting.Key, setting.Value);
+                }
+            }
+        }
+
         [ExcludeFromCodeCoverage]
         public void Load(string filename)
         {
@@ -147,19 +154,20 @@ namespace CDC.Configuration
             {
                 if (File.Exists(filename))
                 {
-                    using (Stream fs = new FileStream(filename, FileMode.Open, FileAccess.Read))
+                    using (var fs = new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                    using (var sr = new StreamReader(fs, Encoding.Default))
                     {
-                        XmlReaderSettings settings = new XmlReaderSettings()
-                        {
-                            IgnoreWhitespace = true
-                        };
-                        XmlReader reader = XmlReader.Create(fs);
-                        ReadXml(reader);
+                        JsonTextReader reader = new JsonTextReader(sr);
+                        JsonSerializer serializer = new JsonSerializer();
+                        var setting = (Setting)serializer.Deserialize<Setting>(reader);
+                        MergeSettings(setting);
+                        reader.Close();
+                        sr.Close();
                         fs.Close();
                     }
                 }
             }
-            catch(DuplicateSettingException de)
+            catch (DuplicateSettingException de)
             {
                 var e = new FileLoadException("Error while loading configuration file '" + filename + "'.", de);
                 Debug.Assert(false, e.Message + Environment.NewLine + de.Message + (de.InnerException != null ? Environment.NewLine + de.InnerException.Message : ""));
@@ -171,7 +179,7 @@ namespace CDC.Configuration
                 Debug.Assert(false, e.Message + Environment.NewLine + se.Message + (se.InnerException != null ? Environment.NewLine + se.InnerException.Message : ""));
                 throw e;
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 var e = new FileLoadException("Error while loading configuration file '" + filename + "'.", ex);
                 Debug.Assert(false, e.Message + Environment.NewLine + ex.Message + (ex.InnerException != null ? Environment.NewLine + ex.InnerException.Message : ""));
@@ -181,48 +189,18 @@ namespace CDC.Configuration
 
         public void Save(string filename)
         {
-            XmlSerializer serializer = new XmlSerializer(typeof(Setting));
-            using (Stream fs = new FileStream(filename, FileMode.Create))
+            JsonSerializer serializer = new JsonSerializer();
+            serializer.Formatting = Formatting.Indented;
+
+            using (var fs = new FileStream(filename, FileMode.Create))
+            using (var sw = new StreamWriter(fs, Encoding.Default))
+            using (var jw = new JsonTextWriter(sw))
             {
-                XmlWriterSettings settings = new XmlWriterSettings()
-                {
-                    Indent = true,
-                    Encoding = Encoding.UTF8
-                };
-                XmlWriter writer = XmlWriter.Create(fs, settings);
-                serializer.Serialize(writer, this);
-                writer.Close();
+                serializer.Serialize(jw, this);
+                sw.Close();
                 fs.Close();
             }
         }
-
-        public void NewSave(string filename)
-        {
-            using (Stream fs = new FileStream(filename, FileMode.Create))
-            {
-                XmlWriterSettings settings = new XmlWriterSettings()
-                {
-                    Indent = true,
-                    Encoding = Encoding.UTF8
-                };
-                XmlWriter writer = XmlWriter.Create(fs, settings);
-                Serialize(writer, this);
-                writer.Close();
-                fs.Close();
-            }
-        }
-
-        private static void Serialize(XmlWriter w, Setting s)
-        {
-            w.WriteStartElement("Setting");
-            w.WriteAttributeString("name", s.Name);
-            w.WriteAttributeString("value", s.Value);
-            if( !string.IsNullOrEmpty(s.Description) ) w.WriteElementString("Description", s.Description);
-            foreach (var subSetting in s.Settings.Values)
-                Serialize(w, subSetting);
-            w.WriteEndElement();
-        }
-
 
         /// <summary>
         /// Gets a configuration setting Node.  Use the Configuration Editor to modify configuration for safety.
@@ -286,86 +264,6 @@ namespace CDC.Configuration
             {
                 value = int.MinValue;
                 return false;
-            }
-        }
-
-        public System.Xml.Schema.XmlSchema GetSchema()
-        {
-            return null;
-        }
-
-        public void ReadXml(System.Xml.XmlReader reader)
-        {
-            reader.MoveToContent();
-            string name = reader.GetAttribute("name");
-            string value = reader.GetAttribute("value");
-            if (value == null) value = "";
-            string typeCheck = reader.GetAttribute("typeCheck");
-            string description = null;
-
-            if (string.IsNullOrEmpty(Name))
-                Name = name;
-
-            if (string.IsNullOrEmpty(Value))
-                Value = value;
-            else if (Value != value)
-                throw new DuplicateSettingException(name);
-
-            if( !reader.IsEmptyElement )
-            {
-                bool bFirstTime = true;
-                while (reader.Read())
-                {
-                    if( bFirstTime )
-                        if( reader.NodeType == XmlNodeType.Element && reader.Name == "Description" )
-                        {
-                            if (!reader.IsEmptyElement)
-                            {
-                                reader.MoveToContent();
-                                description = reader.ReadElementContentAsString();
-                                if (string.IsNullOrEmpty(Description))
-                                    Description = description;
-                                else if (Description != description)
-                                    throw new DuplicateSettingException(name);
-                            }
-                            bFirstTime = false;
-                        }
-                    if (reader.NodeType == XmlNodeType.Element && reader.Name == "Setting")
-                    {
-                        string aname = reader.GetAttribute("name");
-                        if (!string.IsNullOrEmpty(aname))
-                        {
-                            if (Settings.Keys.Contains(aname))
-                            {
-                                Settings[aname].ReadXml(reader);
-                            }
-                            else
-                            {
-                                Setting S = new Setting();
-                                S.ReadXml(reader);
-                                Settings[aname] = S;
-                            }
-                        }
-                        bFirstTime = false;
-                    }
-                    else if( reader.NodeType != XmlNodeType.Whitespace)
-                        break;
-                }
-            }
-        }
-
-        public void WriteXml(System.Xml.XmlWriter writer)
-        {
-            writer.WriteAttributeString("name", Name);
-            writer.WriteAttributeString("value", Value);            
-            if (!string.IsNullOrEmpty(Description))
-                writer.WriteElementString("Description", Description);
-
-            foreach(var name in Settings)
-            {
-                writer.WriteStartElement("Setting");
-                name.Value.WriteXml(writer);
-                writer.WriteEndElement();
             }
         }
     }

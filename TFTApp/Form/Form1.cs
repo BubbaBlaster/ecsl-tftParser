@@ -27,9 +27,9 @@ namespace TFT
             sw.AutoReset = false;
             sw.Interval = 1500;
             sw.Elapsed += Sw_Elapsed;
-            sw.Start();
 
             DB = new Database();
+            sw.Start();
 
             rtbProgress.Multiline = true;
             _currentOperation.PropertyChanged += _currentOperation_PropertyChanged;

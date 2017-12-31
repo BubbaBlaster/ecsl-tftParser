@@ -1,6 +1,9 @@
-﻿using System;
+﻿using CDC.Logging;
+using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
+using System.Security;
 
 namespace CDC.Configuration
 {
@@ -15,11 +18,11 @@ namespace CDC.Configuration
 
             if (Directory.Exists(path.Substring(0, path.LastIndexOf('/') + 1) + "Config"))
             {
-                Load(path.Substring(0, path.LastIndexOf('/') + 1) + "Config", "*.config.xml");
+                Load(path.Substring(0, path.LastIndexOf('/') + 1) + "Config", "*.config.json");
             }
             if (Directory.Exists(path.Substring(0, path.LastIndexOf('/') + 1)))
             {
-                Load(path.Substring(0, path.LastIndexOf('/') + 1), "*.config.xml");
+                Load(path.Substring(0, path.LastIndexOf('/') + 1), "*.config.json");
             }
         }        
     }

@@ -5,3 +5,13 @@
     <Setting name="OutputDir" value="Data" />
   </Setting>
 </Setting>
+
+{ "Root": 
+   {
+      "Data" : 
+      {
+        "InputDir" : "D:/...",
+        "OutputDir" : "Data" 
+      }
+   }
+}

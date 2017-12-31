@@ -1,0 +1,18 @@
+{
+  "Value": null,
+  "Settings": {
+    "Data": {
+      "Value": null,
+      "Settings": {
+        "InputDir": {
+          "Value": "D:/Documents/Dropbox/Documents/2017/ECSL/Santa/Input",
+          "Settings": {}
+        },
+        "OutputDir": {
+          "Value": "Data",
+          "Settings": {}
+        }
+      }
+    }
+  }
+}
