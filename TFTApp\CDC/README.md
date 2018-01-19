@@ -1,2 +1,0 @@
-# cdc
-Common C# Library
