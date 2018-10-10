@@ -151,17 +151,6 @@ namespace TFT
 
         private void LoadMenuItem(object sender, EventArgs e)
         {
-            //PostDB.ReadRawData("PData/Book1.csv");
-            //PostDB.Merge();
-            //PostDB.ReadRawData("PData/Book2.csv");
-            //PostDB.Merge();
-            //PostDB.ReadRawData("PData/Book3.csv");
-            //PostDB.Merge();
-            //PostDB.ReadRawData("PData/Book4.csv");
-            //PostDB.Merge();
-            //PostDB.ReadRawData("PData/Special.csv");
-            //PostDB.Merge();
-
             int totalKidsRegistered = 0;
             int totalProjectSmileKidsRegistered = 0;
             foreach (DataRow dr in DB.Data.Rows)

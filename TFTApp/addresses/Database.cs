@@ -41,9 +41,11 @@ namespace addresses
             try
             {
                 _currentOperation.Value = "Initializing Database";
+
                 ReadTFTRawData();
                 ReadPSRawData();
                 ReadSpecialRawData();
+
                 Merge();
 
                 ComputeBreakOut();
@@ -163,7 +165,11 @@ namespace addresses
             {
                 int lineNumber = 0;
                 string filename = _InputDir + "/Special.csv";
-                System.Diagnostics.Debug.Assert(File.Exists(filename));
+                if( !File.Exists(filename))
+                {
+                    _log.Warning("Special DB: 'Special.csv' not found in '" + _InputDir + "' - Skipping");
+                    return false;
+                }
 
                 using (var fs = new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
                 using (var sr = new StreamReader(fs, Encoding.Default))
@@ -198,8 +204,8 @@ namespace addresses
                                 string tag = tagInfo[ii].Trim(new char[] { '"', '\\', ',' });
                                 row[header[ii]] = Pretty(tag);
                             }
-                            row["State"] = "Texas";
-                            row["Organization"] = string.Empty;
+                            row[ColumnName.State] = "Texas";
+                            row[ColumnName.Organization] = string.Empty;
 
                             rawSpecialData.Rows.Add(row);
                         }
@@ -225,12 +231,17 @@ namespace addresses
             try
             {
                 int lineNumber = 0;
-                string filename = _InputDir + "/TFTExport.csv";
-                System.Diagnostics.Debug.Assert(File.Exists(filename));
+                string filename = _InputDir + "/dashboard-family-requests-form-export.csv";
+                if (!File.Exists(filename))
+                {
+                    _log.Warning("TFT DB: 'dashboard-family-requests-form-export.csv' not found in '" + _InputDir + "' - Skipping");
+                    return false;
+                }
 
-                using(var fs = new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                using (var fs = new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
                 using (var sr = new StreamReader(fs, Encoding.Default))
                 {
+                    // Read the header row
                     String line = sr.ReadLine();
                     lineNumber++;
                     String[] header = SplitCSV(line);
@@ -240,6 +251,8 @@ namespace addresses
                         rawTFTData.Columns.Add(columnName);
                     }
                     rawTFTData.Columns.Add(ColumnName.Organization);
+                    rawTFTData.Columns.Add(ColumnName.TimeSlot);
+                    rawTFTData.Columns.Add(ColumnName.TimeSlotIndex);
                     rawTFTData.PrimaryKey = new DataColumn[1] { rawTFTData.Columns[ColumnName.ControlNumber] };
 
                     bool go = true;
@@ -261,8 +274,10 @@ namespace addresses
                                 string tag = tagInfo[ii].Trim(new char[] { '"', '\\', ',' });
                                 row[header[ii]] = Pretty(tag);
                             }
-                            row["State"] = "Texas";
-                            row["Organization"] = string.Empty;
+                            row[ColumnName.State] = "Texas";
+                            row[ColumnName.TimeSlot] = string.Empty;
+                            row[ColumnName.TimeSlotIndex] = string.Empty;
+                            row[ColumnName.Organization] = "ToysForTots";
 
                             rawTFTData.Rows.Add(row);
                         }
@@ -287,8 +302,12 @@ namespace addresses
             rawPSData = new DataTable();
             try
             {
-                string filename = _InputDir + "/PS2017.csv";
-                System.Diagnostics.Debug.Assert(File.Exists(filename));
+                string filename = _InputDir + "/PS2018.csv";
+                if (!File.Exists(filename))
+                {
+                    _log.Warning("Project Smile DB: 'PS2018.csv' not found in '" + _InputDir + "' - Skipping");
+                    return false;
+                }
 
                 using (var fs = new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
                 using (var sr = new StreamReader(fs, Encoding.Default))
@@ -300,39 +319,10 @@ namespace addresses
                         string columnName = header[i] = header[i].Trim(new char[] { '"', '\\', ',' });
                         rawPSData.Columns.Add(columnName);
                     }
-                    rawPSData.Columns.Add(ColumnName.Boys_0_2);
-                    rawPSData.Columns.Add(ColumnName.Boys_3_6);
-                    rawPSData.Columns.Add(ColumnName.Boys_7_11);
-                    rawPSData.Columns.Add(ColumnName.Boys_12_16);
-                    rawPSData.Columns.Add(ColumnName.Boys_17);
-                    rawPSData.Columns.Add(ColumnName.Boys_0_2_Names);
-                    rawPSData.Columns.Add(ColumnName.Boys_3_6_Names);
-                    rawPSData.Columns.Add(ColumnName.Boys_7_11_Names);
-                    rawPSData.Columns.Add(ColumnName.Boys_12_16_Names);
-                    rawPSData.Columns.Add(ColumnName.Boys_17_Names);
-                    rawPSData.Columns.Add(ColumnName.Girls_0_2);
-                    rawPSData.Columns.Add(ColumnName.Girls_3_6);
-                    rawPSData.Columns.Add(ColumnName.Girls_7_11);
-                    rawPSData.Columns.Add(ColumnName.Girls_12_16);
-                    rawPSData.Columns.Add(ColumnName.Girls_17);
-                    rawPSData.Columns.Add(ColumnName.Girls_0_2_Names);
-                    rawPSData.Columns.Add(ColumnName.Girls_3_6_Names);
-                    rawPSData.Columns.Add(ColumnName.Girls_7_11_Names);
-                    rawPSData.Columns.Add(ColumnName.Girls_12_16_Names);
-                    rawPSData.Columns.Add(ColumnName.Girls_17_Names);
-                    rawPSData.Columns.Add(ColumnName.Total);
-                    rawPSData.Columns.Add(ColumnName.R0);
-                    rawPSData.Columns.Add(ColumnName.R1);
-                    rawPSData.Columns.Add(ColumnName.R2);
-                    rawPSData.Columns.Add(ColumnName.R3);
-                    rawPSData.Columns.Add(ColumnName.R4);
-                    rawPSData.Columns.Add(ColumnName.R5);
-                    rawPSData.Columns.Add(ColumnName.R6);
-                    rawPSData.Columns.Add(ColumnName.R7);
-                    rawPSData.Columns.Add(ColumnName.R8);
-                    rawPSData.Columns.Add(ColumnName.R9);
-                    rawPSData.Columns.Add(ColumnName.Kids);
-
+                    
+                    rawPSData.Columns.Add(ColumnName.Organization);
+                    rawTFTData.Columns.Add(ColumnName.TimeSlot);
+                    rawTFTData.Columns.Add(ColumnName.TimeSlotIndex);
                     rawPSData.PrimaryKey = new DataColumn[1] { rawPSData.Columns[ColumnName.ControlNumber] };
 
                     bool go = true;
@@ -351,70 +341,32 @@ namespace addresses
                                 string tag = tagInfo[ii].Trim(new char[] { '"', '\\', ',' });
                                 row[header[ii]] = Pretty(tag);
                             }
-                            row["State"] = "Texas";
+                            row[ColumnName.State] = "Texas";
+                            row[ColumnName.Organization] = "Project Smile";
 
                             var existingRow = rawPSData.Rows.Find(row[ColumnName.ControlNumber]);
 
-                            if (existingRow == null)
+                            // for each child, check to see if child is too old
+                            int totalKids = 0;
+                            for (int i = 1; i <= 10; i++)
                             {
-                                row[ColumnName.Organization] = "Project Smile";
-                                row[ColumnName.Boys_0_2] = 0;
-                                row[ColumnName.Boys_3_6] = 0;
-                                row[ColumnName.Boys_7_11] = 0;
-                                row[ColumnName.Boys_12_16] = 0;
-                                row[ColumnName.Boys_17] = 0;
-                                row[ColumnName.Boys_0_2_Names] = string.Empty;
-                                row[ColumnName.Boys_3_6_Names] = string.Empty;
-                                row[ColumnName.Boys_7_11_Names] = string.Empty;
-                                row[ColumnName.Boys_12_16_Names] = string.Empty;
-                                row[ColumnName.Boys_17_Names] = string.Empty;
-                                row[ColumnName.Girls_0_2] = 0;
-                                row[ColumnName.Girls_3_6] = 0;
-                                row[ColumnName.Girls_7_11] = 0;
-                                row[ColumnName.Girls_12_16] = 0;
-                                row[ColumnName.Girls_17] = 0;
-                                row[ColumnName.Girls_0_2_Names] = string.Empty;
-                                row[ColumnName.Girls_3_6_Names] = string.Empty;
-                                row[ColumnName.Girls_7_11_Names] = string.Empty;
-                                row[ColumnName.Girls_12_16_Names] = string.Empty;
-                                row[ColumnName.Girls_17_Names] = string.Empty;
-                                row[ColumnName.Total] = 0;
-                                row[ColumnName.Kids] = string.Empty;
-
-                                rawPSData.Rows.Add(row);
-                            }
-
-                            int age = (int)float.Parse((string)row[ColumnName.Age]);
-                            bool boy = ((string)row[ColumnName.Gender]) == "M";
-                            string name = (string)row[ColumnName.ChildName];
-
-                            string section = boy ? "Boys" : "Girls";
-                            if (age < 3) section += " 0-2";
-                            else if (age < 7) section += " 3-6";
-                            else if (age < 12) section += " 7-11";
-                            else if (age < 17) section += " 12-16";
-                            else if (age < 18) section += " 17";
-                            else
-                            {
-                                _log.Warning("Project Smile - " + row[ColumnName.ContactFirstName] + " " + row[ColumnName.ContactLastName]
-                                     + " child '" + name + "' is above the age limit.");
-                                continue;
+                                string agekey = "CHILDAGE" + i;
+                                if (int.TryParse((string)row[agekey], out int age))
+                                {
+                                    totalKids++;
+                                    if (age > 17)
+                                    {
+                                        _log.Warning("Project Smile - " + row[ColumnName.ContactFirst] + " " + row[ColumnName.ContactLast]
+                                             + " child '" + (string)row["CHILDNAME" + i] + "' is above the age limit.");
+                                        continue;
+                                    }
+                                }
                             }
 
                             if (existingRow != null)
                                 row = existingRow;
 
-                            int count = 1 + int.Parse((string)row[section]);
-                            row[section] = count;
-                            row[section + " Names"] = (string)row[section + " Names"] + (count > 1 ? ", " : "") + name;
-                            int total = 1 + int.Parse((string)row[ColumnName.Total]);
-                            row[ColumnName.Total] = total;
-
-                            if( total > 10 )
-                            {
-                                _log.Warning("Project Smile - " + row[ColumnName.ContactFirstName] + " " + row[ColumnName.ContactLastName]
-                                    + " has too many kids. '" + name +"' has been excluded from the list.");
-                            }
+                            row[ColumnName.Total] = totalKids;
                         }
                         if (sr.EndOfStream)
                             go = false;
@@ -431,31 +383,12 @@ namespace addresses
             return true;
         }
 
-        //Deprecated
-        private void MergeWithRow(DataRow existingRow, DataRow row, string numColName, string nameColName)
-        {
-            int numExisting = int.Parse((string)existingRow[numColName]);
-            if (numExisting == 0)
-            {
-                existingRow[numColName] = row[numColName];
-                existingRow[nameColName] = row[nameColName];
-            }
-            else
-            {
-                int numNew = int.Parse((string)row[numColName]);
-                if (numNew == 0)
-                    return;
-                existingRow[numColName] = (numExisting + numNew).ToString();
-                existingRow[nameColName] = (string)existingRow[nameColName] + ", " + (string)row[nameColName];
-            }
-        }
-
         public void WriteSpecial()
         {
             _currentOperation.Value = "Writing Special";
             var Entries = from myRow in Data.AsEnumerable()
                           where (myRow.Field<string>(ColumnName.ControlNumber).Contains("S"))
-                          orderby myRow.Field<string>(ColumnName.TimeSlot) descending, myRow.Field<string>(ColumnName.ContactLastName)
+                          orderby myRow.Field<string>(ColumnName.TimeSlot) descending, myRow.Field<string>(ColumnName.ContactLast)
                           select myRow;
 
             int page = 1;
@@ -471,9 +404,9 @@ namespace addresses
         {
             _currentOperation.Value = "Writing Book1";
             var Entries = from myRow in Data.AsEnumerable()
-                                where (myRow.Field<string>(ColumnName.ContactLastName).CompareTo(_strBreak1End) <= 0 &&
+                                where (myRow.Field<string>(ColumnName.ContactLast).CompareTo(_strBreak1End) <= 0 &&
                                    !myRow.Field<string>(ColumnName.ControlNumber).Contains("S"))
-                                orderby myRow.Field<string>(ColumnName.TimeSlotIndex) ascending, myRow.Field<string>(ColumnName.ContactLastName)
+                                orderby myRow.Field<string>(ColumnName.TimeSlotIndex) ascending, myRow.Field<string>(ColumnName.ContactLast)
                                 select myRow;
 
             int page=1;
@@ -489,10 +422,10 @@ namespace addresses
         {
             _currentOperation.Value = "Writing Book2";
             var Entries = from myRow in Data.AsEnumerable()
-                          where (myRow.Field<string>(ColumnName.ContactLastName).CompareTo(_strBreak2End) <= 0 &&
-                                 myRow.Field<string>(ColumnName.ContactLastName).CompareTo(_strBreak2Begin) >= 0 &&
+                          where (myRow.Field<string>(ColumnName.ContactLast).CompareTo(_strBreak2End) <= 0 &&
+                                 myRow.Field<string>(ColumnName.ContactLast).CompareTo(_strBreak2Begin) >= 0 &&
                                    !myRow.Field<string>(ColumnName.ControlNumber).Contains("S"))
-                          orderby myRow.Field<string>(ColumnName.TimeSlotIndex) ascending, myRow.Field<string>(ColumnName.ContactLastName)
+                          orderby myRow.Field<string>(ColumnName.TimeSlotIndex) ascending, myRow.Field<string>(ColumnName.ContactLast)
                           select myRow;
 
             int page = 1;
@@ -508,10 +441,10 @@ namespace addresses
         {
             _currentOperation.Value = "Writing Book3";
             var Entries = from myRow in Data.AsEnumerable()
-                          where (myRow.Field<string>(ColumnName.ContactLastName).CompareTo(_strBreak3End) <= 0 &&
-                                 myRow.Field<string>(ColumnName.ContactLastName).CompareTo(_strBreak3Begin) >= 0 &&
+                          where (myRow.Field<string>(ColumnName.ContactLast).CompareTo(_strBreak3End) <= 0 &&
+                                 myRow.Field<string>(ColumnName.ContactLast).CompareTo(_strBreak3Begin) >= 0 &&
                                    !myRow.Field<string>(ColumnName.ControlNumber).Contains("S"))
-                          orderby myRow.Field<string>(ColumnName.TimeSlotIndex) ascending, myRow.Field<string>(ColumnName.ContactLastName)
+                          orderby myRow.Field<string>(ColumnName.TimeSlotIndex) ascending, myRow.Field<string>(ColumnName.ContactLast)
                           select myRow;
 
             int page = 1;
@@ -527,9 +460,9 @@ namespace addresses
         {
             _currentOperation.Value = "Writing Book4";
             var Entries = from myRow in Data.AsEnumerable()
-                          where (myRow.Field<string>(ColumnName.ContactLastName).CompareTo(_strBreak4Begin) >= 0 &&
+                          where (myRow.Field<string>(ColumnName.ContactLast).CompareTo(_strBreak4Begin) >= 0 &&
                                    !myRow.Field<string>(ColumnName.ControlNumber).Contains("S"))
-                          orderby myRow.Field<string>(ColumnName.TimeSlotIndex) ascending, myRow.Field<string>(ColumnName.ContactLastName)
+                          orderby myRow.Field<string>(ColumnName.TimeSlotIndex) ascending, myRow.Field<string>(ColumnName.ContactLast)
                           select myRow;
 
             int page = 1;
@@ -547,7 +480,7 @@ namespace addresses
             var Entries = from myRow in Data.AsEnumerable()
                             where (myRow.Field<string>(ColumnName.Organization) != "Project Smile" &&
                                    !myRow.Field<string>(ColumnName.ControlNumber).Contains("S"))
-                            orderby myRow.Field<string>(ColumnName.ContactLastName)
+                            orderby myRow.Field<string>(ColumnName.ContactLast)
                             select myRow;
 
             WriteCSV("TFTEmails.csv", Entries, false);
@@ -559,7 +492,7 @@ namespace addresses
             var PSEntries = from myRow in Data.AsEnumerable()
                                  where (myRow.Field<string>(ColumnName.Organization) == "Project Smile" &&
                                    !myRow.Field<string>(ColumnName.ControlNumber).Contains("S"))
-                                 orderby myRow.Field<string>(ColumnName.ContactLastName)
+                                 orderby myRow.Field<string>(ColumnName.ContactLast)
                                  select myRow;
 
             WriteCSV("PSInvitations.csv", PSEntries, false);
@@ -572,7 +505,7 @@ namespace addresses
                             where (myRow.Field<string>(ColumnName.Organization) == "Project Smile" &&
                               !myRow.Field<string>(ColumnName.ControlNumber).Contains("S") &&
                               myRow.Field<string>(ColumnName.pDup) == "N")
-                            orderby myRow.Field<string>(ColumnName.ContactLastName)
+                            orderby myRow.Field<string>(ColumnName.ContactLast)
                             select myRow;
 
             WriteCSV("PSNoShows.csv", PSEntries, false);
@@ -641,17 +574,6 @@ namespace addresses
                 GenerateRegistrationData(row);
                 CorrectPhone(row);
 
-                row[ColumnName.Total] = int.Parse((string)row[ColumnName.Boys_0_2]) +
-                    int.Parse((string)row[ColumnName.Boys_3_6]) +
-                    int.Parse((string)row[ColumnName.Boys_7_11]) +
-                    int.Parse((string)row[ColumnName.Boys_12_16]) +
-                    int.Parse((string)row[ColumnName.Boys_17]) +
-                    int.Parse((string)row[ColumnName.Girls_0_2]) +
-                    int.Parse((string)row[ColumnName.Girls_3_6]) +
-                    int.Parse((string)row[ColumnName.Girls_7_11]) +
-                    int.Parse((string)row[ColumnName.Girls_12_16]) +
-                    int.Parse((string)row[ColumnName.Girls_17]);
-
                 // This will put TFT families in the order of entry
                 int timeSlotIndex = (int)((double)(index++) / (double)(totalRows / 4.0f)); 
                 row[ColumnName.TimeSlotIndex] = timeSlotIndex;
@@ -680,22 +602,6 @@ namespace addresses
                 Data.Rows.Add(row);
             }
 
-            foreach(DataRow r in Data.Rows)
-            {
-                r[ColumnName.Total] = (
-                    Int32.Parse((string)r[ColumnName.Boys_0_2]) +
-                    Int32.Parse((string)r[ColumnName.Boys_3_6]) +
-                    Int32.Parse((string)r[ColumnName.Boys_7_11]) +
-                    Int32.Parse((string)r[ColumnName.Boys_12_16]) +
-                    Int32.Parse((string)r[ColumnName.Boys_17]) +
-                    Int32.Parse((string)r[ColumnName.Girls_0_2]) +
-                    Int32.Parse((string)r[ColumnName.Girls_3_6]) +
-                    Int32.Parse((string)r[ColumnName.Girls_7_11]) +
-                    Int32.Parse((string)r[ColumnName.Girls_12_16]) +
-                    Int32.Parse((string)r[ColumnName.Girls_17])
-                    ).ToString();
-            }
-
             _currentOperation.Value = "Merging - Done";
         }
 
@@ -712,24 +618,13 @@ namespace addresses
             }
 
             row[ColumnName.Phone] = phoneString((string)row[ColumnName.Phone]);
-            row[ColumnName.SecondaryPhone] = phoneString((string)row[ColumnName.SecondaryPhone]);
+            row[ColumnName.Phone2] = phoneString((string)row[ColumnName.Phone2]);
         }
 
         private void GenerateRegistrationData(DataRow r)
         {
-            r[ColumnName.ProperName] = r[ColumnName.ContactLastName] + ", " + r[ColumnName.ContactFirstName];
+            r[ColumnName.ProperName] = r[ColumnName.ContactLast] + ", " + r[ColumnName.ContactFirst];
             r[ColumnName.Kids] = string.Empty;
-            int count = 0;
-            count = ParseChildren(r, count, ColumnName.Girls_0_2, ColumnName.Girls_0_2_Names, "Girl 0-2");
-            count = ParseChildren(r, count, ColumnName.Girls_3_6, ColumnName.Girls_3_6_Names, "Girl 3-6");
-            count = ParseChildren(r, count, ColumnName.Girls_7_11, ColumnName.Girls_7_11_Names, "Girl 7-11");
-            count = ParseChildren(r, count, ColumnName.Girls_12_16, ColumnName.Girls_12_16_Names, "Girl 12-16");
-            count = ParseChildren(r, count, ColumnName.Girls_17, ColumnName.Girls_17_Names, "Girl 17");
-            count = ParseChildren(r, count, ColumnName.Boys_0_2, ColumnName.Boys_0_2_Names, "Boy 0-2");
-            count = ParseChildren(r, count, ColumnName.Boys_3_6, ColumnName.Boys_3_6_Names, "Boy 3-6");
-            count = ParseChildren(r, count, ColumnName.Boys_7_11, ColumnName.Boys_7_11_Names, "Boy 7-11");
-            count = ParseChildren(r, count, ColumnName.Boys_12_16, ColumnName.Boys_12_16_Names, "Boy 12-16");
-            count = ParseChildren(r, count, ColumnName.Boys_17, ColumnName.Boys_17_Names, "Boy 17");
         }
 
         private int ParseChildren(DataRow r, int count, string colName_NumChildren, string colName_NameChildren, string strAgeRangePretty )
@@ -944,10 +839,14 @@ namespace addresses
 
         public void ComputeBreakOut()
         {
+            int CountKids(DataRow e, Gender gender, int ageBegin, int ageEnd)
+            {
+                return 0;
+            }
+
             _currentOperation.Value = "Computing BreakOut";
-            var pendingEntries = from myRow in Data.AsEnumerable()
-                                  //where (myRow.Field<string>(ColumnName.Status) == "Pending")
-                                  orderby myRow.Field<string>(ColumnName.ContactLastName)
+            var entries = from myRow in Data.AsEnumerable()
+                                  orderby myRow.Field<string>(ColumnName.ContactLast)
                                   select myRow;
             // Compute Totals
             _totalKids = 0;
@@ -966,7 +865,7 @@ namespace addresses
             _totalKidsTFT = 0;
             _totalRegPS = 0;
             _totalRegTFT = 0;
-            foreach (var e in pendingEntries)
+            foreach (var e in entries)
             {
                 if (e.Field<string>(ColumnName.Organization) == "Project Smile")
                 {
@@ -978,16 +877,17 @@ namespace addresses
                     _totalKidsTFT += Int32.Parse(e.Field<string>(ColumnName.Total));
                     _totalRegTFT++;
                 }
-                _totalBoys_0_2 += Int32.Parse(e.Field<string>(ColumnName.Boys_0_2));
-                _totalBoys_3_6 += Int32.Parse(e.Field<string>(ColumnName.Boys_3_6));
-                _totalBoys_7_11 += Int32.Parse(e.Field<string>(ColumnName.Boys_7_11));
-                _totalBoys_12_16 += Int32.Parse(e.Field<string>(ColumnName.Boys_12_16));
-                _totalBoys_17 += Int32.Parse(e.Field<string>(ColumnName.Boys_17));
-                _totalGirls_0_2 += Int32.Parse(e.Field<string>(ColumnName.Girls_0_2));
-                _totalGirls_3_6 += Int32.Parse(e.Field<string>(ColumnName.Girls_3_6));
-                _totalGirls_7_11 += Int32.Parse(e.Field<string>(ColumnName.Girls_7_11));
-                _totalGirls_12_16 += Int32.Parse(e.Field<string>(ColumnName.Girls_12_16));
-                _totalGirls_17 += Int32.Parse(e.Field<string>(ColumnName.Girls_17));
+
+                _totalBoys_0_2 += CountKids(e, Gender.Male, 0, 2);
+                _totalBoys_3_6 += CountKids(e, Gender.Male, 3, 6);
+                _totalBoys_7_11 += CountKids(e, Gender.Male, 7, 11);
+                _totalBoys_12_16 += CountKids(e, Gender.Male, 12, 16);
+                _totalBoys_17 += CountKids(e, Gender.Male, 17, 17);
+                _totalGirls_0_2 += CountKids(e, Gender.Female, 0, 2);
+                _totalGirls_3_6 += CountKids(e, Gender.Female, 3, 6);
+                _totalGirls_7_11 += CountKids(e, Gender.Female, 7, 11);
+                _totalGirls_12_16 += CountKids(e, Gender.Female, 12, 16);
+                _totalGirls_17 += CountKids(e, Gender.Female, 17, 17);
             }
             _totalKids += _totalBoys_0_2 + _totalBoys_3_6 + _totalBoys_7_11 + _totalBoys_12_16 + _totalBoys_17 +
                 _totalGirls_0_2 + _totalGirls_3_6 + _totalGirls_7_11 + _totalGirls_12_16 + _totalGirls_17;
@@ -995,7 +895,7 @@ namespace addresses
             StreamWriter sw = new StreamWriter(_OutputDir + "/RegistrationStatistics.csv");
 
             sw.WriteLine("Total_Registrations," + Data.Rows.Count);
-            sw.WriteLine("Total Accepted," + pendingEntries.Count());
+            sw.WriteLine("Total Accepted," + entries.Count());
             sw.WriteLine("Total Accepted PS," + _totalRegPS);
             sw.WriteLine("Total Accepted TFT," + _totalRegTFT);
             _currentOperation.Value =
@@ -1015,19 +915,10 @@ namespace addresses
             int n = 0;
             int state = 0;
             _strBreak2Begin = _strBreak1End = _strBreak2End = _strBreak3Begin = _strBreak3End = _strBreak4Begin = string.Empty;
-            foreach (var e in pendingEntries)
+            foreach (var e in entries)
             {
-                n += Int32.Parse(e.Field<string>(ColumnName.Boys_0_2)) +
-                    Int32.Parse(e.Field<string>(ColumnName.Boys_3_6)) +
-                    Int32.Parse(e.Field<string>(ColumnName.Boys_7_11)) +
-                    Int32.Parse(e.Field<string>(ColumnName.Boys_12_16)) +
-                    Int32.Parse(e.Field<string>(ColumnName.Boys_17)) +
-                     Int32.Parse(e.Field<string>(ColumnName.Girls_0_2)) +
-                    Int32.Parse(e.Field<string>(ColumnName.Girls_3_6)) +
-                    Int32.Parse(e.Field<string>(ColumnName.Girls_7_11)) +
-                    Int32.Parse(e.Field<string>(ColumnName.Girls_12_16)) +
-                    Int32.Parse(e.Field<string>(ColumnName.Girls_17));
-                string strLastName = (string)e[ColumnName.ContactLastName];
+                n += Int32.Parse(e.Field<string>(ColumnName.Total));
+                string strLastName = (string)e[ColumnName.ContactLast];
                 switch (state)
                 {
                     case 0:
@@ -1098,10 +989,7 @@ namespace addresses
         public void CheckDuplicates()
         {
             FindSimilarChildrenLists();
-            CheckForDuplicatePhones();            
-
-            //CheckForDuplicateAddress();
-            //CheckForDuplicateStreet();
+            CheckForDuplicatePhones();
         }
 
         private Dictionary<string, Dictionary<string, string>> dictControlNumberProperties = new Dictionary<string, Dictionary<string, string>>();
@@ -1153,8 +1041,8 @@ namespace addresses
                 td["streetName"] = Pretty(StringAfterNumber((string)r1[ColumnName.Address]));
                 td["phone"] = (string)r1[ColumnName.Phone];
                 td["email"] = (string)r1[ColumnName.Email];
-                td["nameComposite"] = (((string)r1[ColumnName.ContactFirstName]) + "---").Substring(0, 3).ToUpper() +
-                                      (((string)r1[ColumnName.ContactLastName]) + "---").Substring(0, 3).ToUpper();
+                td["nameComposite"] = (((string)r1[ColumnName.ContactFirst]) + "---").Substring(0, 3).ToUpper() +
+                                      (((string)r1[ColumnName.ContactLast]) + "---").Substring(0, 3).ToUpper();
                 td["SimilarEntryIssues"] = string.Empty;
             }
 
@@ -1273,23 +1161,22 @@ namespace addresses
         {
             char[] sep = { ',' };
             List<string> childrenNames = new List<string>();
-            string[] colNames = { ColumnName.Boys_0_2_Names,
-                                    ColumnName.Boys_3_6_Names,
-                                    ColumnName.Boys_7_11_Names,
-                                    ColumnName.Boys_12_16_Names,
-                                    ColumnName.Boys_17_Names,
-                                    ColumnName.Girls_0_2_Names,
-                                    ColumnName.Girls_3_6_Names,
-                                    ColumnName.Girls_7_11_Names,
-                                    ColumnName.Girls_12_16_Names,
-                                    ColumnName.Girls_17_Names};
+            string[] colNames = { ColumnName.ChildFirst1,
+                                    ColumnName.ChildFirst2,
+                                    ColumnName.ChildFirst3,
+                                    ColumnName.ChildFirst4,
+                                    ColumnName.ChildFirst5,
+                                    ColumnName.ChildFirst6,
+                                    ColumnName.ChildFirst7,
+                                    ColumnName.ChildFirst8,
+                                    ColumnName.ChildFirst9,
+                                    ColumnName.ChildFirst10,};
             foreach (var colName in colNames)
-                foreach (var s in ((string)r[colName]).Split(sep))
-                {
-                    string sTrimmed = s.Trim();
-                    if (sTrimmed.Length != 0)
-                        childrenNames.Add(s.Trim());
-                }
+            {
+                string name = ((string)r[colName]).Trim();
+                if(name.Length > 0)
+                    childrenNames.Add(name);
+            }
 
             int[] childrenIndexes = new int[childrenNames.Count];
             int index = 0;
