@@ -9,6 +9,8 @@
     {
         public const string RequestID = "REQUEST ID";
         public const string ControlNumber = "CONTROL NUMBER";
+        public const string ChildID = "ChildID"; // PS
+        public const string FamilyID = "FamilyID"; // PS
         public const string Status = "STATUS";
         public const string AcceptsTerms = "ACCEPTS TERMS";
         public const string ContactLast = "CONTACT LAST";
@@ -31,6 +33,10 @@
         public const string DistEvent = "DIST EVENT";
         public const string Notes = "NOTES";
         public const string Comments = "COMMENTS";
+        public const string ChildLast = "CHILDLAST"; // PS
+        public const string ChildFirst = "CHILDFIRST"; // PS
+        public const string ChildGender = "CHILDGENDER"; // PS
+        public const string ChildAge = "CHILDAGE"; // PS
         public const string ChildLast1 = "CHILDLAST1";
         public const string ChildFirst1 = "CHILDFIRST1";
         public const string ChildGender1 = "CHILDGENDER1";
@@ -75,7 +81,8 @@
 
         public const string Total = "TOTAL";
         public const string Organization = "ORGANIZATION";
-        public const string Volunteer = "VOLUNTEER";
+        public const string Volunteer = "VOLUNTEER"; // PS
+        public const string VolunteerEmail = "VOLUNTEER EMAIL"; // PS
         public const string ProperName = "PROPER NAME";
         public const string TimeSlot = "TIME SLOT";
         public const string TimeSlotIndex = "TIME SLOT INDEX";
@@ -113,6 +120,7 @@
             Phone,
             Phone2,
             Email,
+            Total,
             pDup,
             ChildFirst1,
             ChildLast1,

@@ -20,6 +20,7 @@ namespace addresses
         private DataTable rawSpecialData;
         ObservableString _currentOperation = ObservableString.Get("CurrentOperation");
         private string _OutputDir, _InputDir;
+        private string _TFT_Filename, _PS_Filename;
 
         public Database()
         {
@@ -32,6 +33,12 @@ namespace addresses
             AppConfiguration.AppConfig.TryGetSetting("Data.OutputDir", out Setting outdir);
             _OutputDir = outdir.Value;
             Directory.CreateDirectory(_OutputDir);
+
+            AppConfiguration.AppConfig.TryGetSetting("Data.TFTFilename", out Setting tftname);
+            _TFT_Filename = tftname.Value;
+
+            AppConfiguration.AppConfig.TryGetSetting("Data.PSFilename", out Setting psname);
+            _PS_Filename = psname.Value;
 
             Clear();
         }
@@ -140,9 +147,11 @@ namespace addresses
             Data.PrimaryKey = new DataColumn[1] { Data.Columns[ColumnName.ControlNumber] };
         }
 
+
+        static Regex csvSplit = new Regex("(?:^|,)(\"(?:[^\"]+|\"\")*\"|[^,]*)", RegexOptions.Compiled);
+
         public static string[] SplitCSV(string input)
-        {
-            Regex csvSplit = new Regex("(?:^|,)(\"(?:[^\"]+|\"\")*\"|[^,]*)", RegexOptions.Compiled);
+        {            
             List<string> list = new List<string>();
             string curr = null;
             foreach (Match match in csvSplit.Matches(input))
@@ -226,15 +235,15 @@ namespace addresses
 
         private bool ReadTFTRawData()
         {
-            _currentOperation.Value = "Reading TFT DB";
+            _currentOperation.Value = "Reading Toys-for-Tots Input";
             rawTFTData = new DataTable();
+            int lineNumber = 0;
             try
             {
-                int lineNumber = 0;
-                string filename = _InputDir + "/dashboard-family-requests-form-export.csv";
+                string filename = _InputDir + "/" + _TFT_Filename;
                 if (!File.Exists(filename))
                 {
-                    _log.Warning("TFT DB: 'dashboard-family-requests-form-export.csv' not found in '" + _InputDir + "' - Skipping");
+                    _log.Warning("TFT DB: '" + _TFT_Filename + "' not found in '" + _InputDir + "' - Skipping");
                     return false;
                 }
 
@@ -253,12 +262,14 @@ namespace addresses
                     rawTFTData.Columns.Add(ColumnName.Organization);
                     rawTFTData.Columns.Add(ColumnName.TimeSlot);
                     rawTFTData.Columns.Add(ColumnName.TimeSlotIndex);
+                    rawTFTData.Columns.Add(ColumnName.Total);
                     rawTFTData.PrimaryKey = new DataColumn[1] { rawTFTData.Columns[ColumnName.ControlNumber] };
 
                     bool go = true;
                     do
                     {
                         line = sr.ReadLine();
+                        lineNumber++;
                         string[] tagInfo = SplitCSV(line);
 
                         if (tagInfo.Length != header.Length)
@@ -278,6 +289,18 @@ namespace addresses
                             row[ColumnName.TimeSlot] = string.Empty;
                             row[ColumnName.TimeSlotIndex] = string.Empty;
                             row[ColumnName.Organization] = "ToysForTots";
+                            int total = 0;
+                            if (!string.IsNullOrEmpty((string)row[ColumnName.ChildAge1])) total++;
+                            if (!string.IsNullOrEmpty((string)row[ColumnName.ChildAge2])) total++;
+                            if (!string.IsNullOrEmpty((string)row[ColumnName.ChildAge3])) total++;
+                            if (!string.IsNullOrEmpty((string)row[ColumnName.ChildAge4])) total++;
+                            if (!string.IsNullOrEmpty((string)row[ColumnName.ChildAge5])) total++;
+                            if (!string.IsNullOrEmpty((string)row[ColumnName.ChildAge6])) total++;
+                            if (!string.IsNullOrEmpty((string)row[ColumnName.ChildAge7])) total++;
+                            if (!string.IsNullOrEmpty((string)row[ColumnName.ChildAge8])) total++;
+                            if (!string.IsNullOrEmpty((string)row[ColumnName.ChildAge9])) total++;
+                            if (!string.IsNullOrEmpty((string)row[ColumnName.ChildAge10])) total++;
+                            row[ColumnName.Total] = total;
 
                             rawTFTData.Rows.Add(row);
                         }
@@ -292,7 +315,7 @@ namespace addresses
                 _currentOperation.Value = "Reading TFT DB - Failed";
                 return false;
             }
-            _currentOperation.Value = "Reading TFT DB - Done";
+            _currentOperation.Value = "Reading Toys-for-Tots Input - Done - " + lineNumber + " successfully parsed.";
             return true;            
         }
 
@@ -300,12 +323,13 @@ namespace addresses
         {
             _currentOperation.Value = "Reading ProjectSmile DB";
             rawPSData = new DataTable();
+            int lineNumber = 0;
             try
             {
-                string filename = _InputDir + "/PS2018.csv";
+                string filename = _InputDir + "/" + _PS_Filename;
                 if (!File.Exists(filename))
                 {
-                    _log.Warning("Project Smile DB: 'PS2018.csv' not found in '" + _InputDir + "' - Skipping");
+                    _log.Warning("Project Smile DB: '" + _PS_Filename + "' not found in '" + _InputDir + "' - Skipping");
                     return false;
                 }
 
@@ -313,22 +337,71 @@ namespace addresses
                 using (var sr = new StreamReader(fs, Encoding.Default))
                 {
                     String line = sr.ReadLine();
+                    lineNumber++;
                     String[] header = SplitCSV(line);
                     for (int i = 0; i < header.Length; i++)
                     {
                         string columnName = header[i] = header[i].Trim(new char[] { '"', '\\', ',' });
                         rawPSData.Columns.Add(columnName);
                     }
-                    
+                    #region Add Missing Rows
+                    rawPSData.Columns.Add(ColumnName.ControlNumber);
                     rawPSData.Columns.Add(ColumnName.Organization);
-                    rawTFTData.Columns.Add(ColumnName.TimeSlot);
-                    rawTFTData.Columns.Add(ColumnName.TimeSlotIndex);
+                    rawPSData.Columns.Add(ColumnName.Phone2);
+                    rawPSData.Columns.Add(ColumnName.TimeSlot);
+                    rawPSData.Columns.Add(ColumnName.TimeSlotIndex);
+                    rawPSData.Columns.Add(ColumnName.ChildAge1);
+                    rawPSData.Columns.Add(ColumnName.ChildAge2);
+                    rawPSData.Columns.Add(ColumnName.ChildAge3);
+                    rawPSData.Columns.Add(ColumnName.ChildAge4);
+                    rawPSData.Columns.Add(ColumnName.ChildAge5);
+                    rawPSData.Columns.Add(ColumnName.ChildAge6);
+                    rawPSData.Columns.Add(ColumnName.ChildAge7);
+                    rawPSData.Columns.Add(ColumnName.ChildAge8);
+                    rawPSData.Columns.Add(ColumnName.ChildAge9);
+                    rawPSData.Columns.Add(ColumnName.ChildAge10);
+                    rawPSData.Columns.Add(ColumnName.ChildFirst1);
+                    rawPSData.Columns.Add(ColumnName.ChildFirst2);
+                    rawPSData.Columns.Add(ColumnName.ChildFirst3);
+                    rawPSData.Columns.Add(ColumnName.ChildFirst4);
+                    rawPSData.Columns.Add(ColumnName.ChildFirst5);
+                    rawPSData.Columns.Add(ColumnName.ChildFirst6);
+                    rawPSData.Columns.Add(ColumnName.ChildFirst7);
+                    rawPSData.Columns.Add(ColumnName.ChildFirst8);
+                    rawPSData.Columns.Add(ColumnName.ChildFirst9);
+                    rawPSData.Columns.Add(ColumnName.ChildFirst10);
+                    rawPSData.Columns.Add(ColumnName.ChildLast1);
+                    rawPSData.Columns.Add(ColumnName.ChildLast2);
+                    rawPSData.Columns.Add(ColumnName.ChildLast3);
+                    rawPSData.Columns.Add(ColumnName.ChildLast4);
+                    rawPSData.Columns.Add(ColumnName.ChildLast5);
+                    rawPSData.Columns.Add(ColumnName.ChildLast6);
+                    rawPSData.Columns.Add(ColumnName.ChildLast7);
+                    rawPSData.Columns.Add(ColumnName.ChildLast8);
+                    rawPSData.Columns.Add(ColumnName.ChildLast9);
+                    rawPSData.Columns.Add(ColumnName.ChildLast10);
+                    rawPSData.Columns.Add(ColumnName.ChildGender1);
+                    rawPSData.Columns.Add(ColumnName.ChildGender2);
+                    rawPSData.Columns.Add(ColumnName.ChildGender3);
+                    rawPSData.Columns.Add(ColumnName.ChildGender4);
+                    rawPSData.Columns.Add(ColumnName.ChildGender5);
+                    rawPSData.Columns.Add(ColumnName.ChildGender6);
+                    rawPSData.Columns.Add(ColumnName.ChildGender7);
+                    rawPSData.Columns.Add(ColumnName.ChildGender8);
+                    rawPSData.Columns.Add(ColumnName.ChildGender9);
+                    rawPSData.Columns.Add(ColumnName.ChildGender10);
+                    rawPSData.Columns.Add(ColumnName.Total);
+                    #endregion
                     rawPSData.PrimaryKey = new DataColumn[1] { rawPSData.Columns[ColumnName.ControlNumber] };
 
                     bool go = true;
+                    string lastFamilyID = string.Empty;
+                    DataRow lastRow = null;
+                    int totalKidsInFamily = 0;
                     do
                     {
                         line = sr.ReadLine();
+                        lineNumber++;
                         string[] tagInfo = SplitCSV(line);
 
                         if (tagInfo.Length != header.Length)
@@ -343,30 +416,42 @@ namespace addresses
                             }
                             row[ColumnName.State] = "Texas";
                             row[ColumnName.Organization] = "Project Smile";
+                            row[ColumnName.Phone2] = string.Empty;
 
-                            var existingRow = rawPSData.Rows.Find(row[ColumnName.ControlNumber]);
-
-                            // for each child, check to see if child is too old
-                            int totalKids = 0;
-                            for (int i = 1; i <= 10; i++)
+                            // check to see if child is too old
+                            string agekey = "CHILDAGE";
+                            if (int.TryParse((string)row[agekey], out int age))
                             {
-                                string agekey = "CHILDAGE" + i;
-                                if (int.TryParse((string)row[agekey], out int age))
+                                if (age > 17)
                                 {
-                                    totalKids++;
-                                    if (age > 17)
-                                    {
-                                        _log.Warning("Project Smile - " + row[ColumnName.ContactFirst] + " " + row[ColumnName.ContactLast]
-                                             + " child '" + (string)row["CHILDNAME" + i] + "' is above the age limit.");
-                                        continue;
-                                    }
+                                    _log.Warning("Project Smile - [" + row[ColumnName.ChildID] + "] " + row[ColumnName.ContactFirst] + " " + row[ColumnName.ContactLast]
+                                         + " child '" + (string)row["CHILDNAME"] + "' is above the age limit.");
+                                    continue;
                                 }
                             }
 
-                            if (existingRow != null)
-                                row = existingRow;
-
-                            row[ColumnName.Total] = totalKids;
+                            if (lastRow != null && string.Compare(lastFamilyID, (string)row[ColumnName.FamilyID]) == 0) // merge into last
+                            {
+                                totalKidsInFamily++;
+                                lastRow[ColumnName.ChildAge + totalKidsInFamily] = row[ColumnName.ChildAge];
+                                lastRow[ColumnName.ChildFirst + totalKidsInFamily] = row[ColumnName.ChildFirst];
+                                lastRow[ColumnName.ChildLast + totalKidsInFamily] = row[ColumnName.ChildLast];
+                                lastRow[ColumnName.ChildGender + totalKidsInFamily] = row[ColumnName.ChildGender];
+                                lastRow[ColumnName.Total] = totalKidsInFamily;
+                            }
+                            else
+                            {
+                                totalKidsInFamily = 1;
+                                lastFamilyID = (string)row[ColumnName.FamilyID];
+                                lastRow = row;
+                                row[ColumnName.ControlNumber] = row[ColumnName.FamilyID];
+                                row[ColumnName.ChildAge1] = row[ColumnName.ChildAge];
+                                row[ColumnName.ChildFirst1] = row[ColumnName.ChildFirst];
+                                row[ColumnName.ChildLast1] = row[ColumnName.ChildLast];
+                                row[ColumnName.ChildGender1] = row[ColumnName.ChildGender];
+                                row[ColumnName.Total] = totalKidsInFamily;
+                                rawPSData.Rows.Add(row);
+                            }                            
                         }
                         if (sr.EndOfStream)
                             go = false;
@@ -379,7 +464,7 @@ namespace addresses
                 _currentOperation.Value = "Reading ProjectSmile DB - Failed";
                 return false;
             }
-            _currentOperation.Value = "Reading ProjectSmile DB - Done";
+            _currentOperation.Value = "Reading ProjectSmile DB - Done - " + lineNumber + " Parsed";
             return true;
         }
 
