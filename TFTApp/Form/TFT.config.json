@@ -11,6 +11,18 @@
         "OutputDir": {
           "Value": "Data",
           "Settings": {}
+        },
+        "TFTFilename": {
+          "Value": "dashboard-family-requests-form-export - no comment.csv",
+          "Settings": {}
+        },
+        "PSFilename": {
+          "Value": "Project SMILE Export 2018.csv",
+          "Settings": {}
+        },
+        "SpecialFilename": {
+          "Value": "Special.csv",
+          "Settings": {}
         }
       }
     }

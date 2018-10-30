@@ -20,7 +20,7 @@ namespace addresses
         private DataTable rawSpecialData;
         ObservableString _currentOperation = ObservableString.Get("CurrentOperation");
         private string _OutputDir, _InputDir;
-        private string _TFT_Filename, _PS_Filename;
+        private string _TFT_Filename, _PS_Filename, _Special_Filename;
 
         public Database()
         {
@@ -39,6 +39,9 @@ namespace addresses
 
             AppConfiguration.AppConfig.TryGetSetting("Data.PSFilename", out Setting psname);
             _PS_Filename = psname.Value;
+
+            AppConfiguration.AppConfig.TryGetSetting("Data.SpecialFilename", out Setting specialname);
+            _Special_Filename = specialname.Value;
 
             Clear();
         }
@@ -173,10 +176,11 @@ namespace addresses
             try
             {
                 int lineNumber = 0;
-                string filename = _InputDir + "/Special.csv";
+                string filename = _InputDir + "/" + _Special_Filename;
                 if( !File.Exists(filename))
                 {
-                    _log.Warning("Special DB: 'Special.csv' not found in '" + _InputDir + "' - Skipping");
+                    _log.Warning("Special DB: '" + _Special_Filename + "' not found in '" + _InputDir + "' - Skipping");
+                    _currentOperation.Value = "Special DB: '" + _Special_Filename + "' not found in '" + _InputDir + "' - Skipping";
                     return false;
                 }
 
@@ -418,11 +422,16 @@ namespace addresses
                             row[ColumnName.Organization] = "Project Smile";
                             row[ColumnName.Phone2] = string.Empty;
 
-                            // check to see if child is too old
+                            // correct the age (rounding down) to check to see if child is too old
                             string agekey = "CHILDAGE";
-                            if (int.TryParse((string)row[agekey], out int age))
+                            if (float.TryParse((string)row[agekey], out float age))
                             {
-                                if (age > 17)
+                                int nAge = (int)age;
+                                // Correct the age
+                                row[agekey] = nAge.ToString();
+
+                                // Check age
+                                if (nAge > 17)
                                 {
                                     _log.Warning("Project Smile - [" + row[ColumnName.ChildID] + "] " + row[ColumnName.ContactFirst] + " " + row[ColumnName.ContactLast]
                                          + " child '" + (string)row["CHILDNAME"] + "' is above the age limit.");
@@ -710,58 +719,31 @@ namespace addresses
         {
             r[ColumnName.ProperName] = r[ColumnName.ContactLast] + ", " + r[ColumnName.ContactFirst];
             r[ColumnName.Kids] = string.Empty;
+            ParseChildren(r);
         }
 
-        private int ParseChildren(DataRow r, int count, string colName_NumChildren, string colName_NameChildren, string strAgeRangePretty )
+        private void ParseChildren(DataRow r)
         {
-            int num = int.Parse((string)r[colName_NumChildren]);
-            if (num == 0)
-                return count;
-            string[] names;
-            string tmpNames = Pretty( (string)r[colName_NameChildren] );
-            string strNames = string.Empty;
-            for(int i=0; i<tmpNames.Length; i++)
+            for (int i = 1; i <= 10; i++)
             {
-                if (tmpNames[i] >= '0' && tmpNames[i] <= '9' || tmpNames[i] == '-')
-                    continue;
-                strNames += tmpNames[i];
-            }
-            if (num == 1)
-            {
-                names = new string[1];
-                names[0] = strNames;
-            }
-            else
-            { 
-                char[] sep = new char[] { ';', ',', ':', '-' };
-                names = strNames.Split(sep, StringSplitOptions.RemoveEmptyEntries);
-            }
-
-            if (names.Length != num)
-            {
-                _log.Warning("Error while parsing children in record: " + r[ColumnName.ControlNumber]);
-                return count;
-            }
-
-            int index = 0;
-            string prefix = "Blue     Blue     Green   .        ";
-            if( strAgeRangePretty.Contains("17") )
-                prefix =    ".        .        .       GftCrd   ";
-            foreach (var n in names)
-            {
-                string strControlNumer = (string)r[ColumnName.ControlNumber];
-                if (count + index < 10)
+                int age = -1;
+                string colNameAge = "ChildAge" + i;
+                string colNameFirstName = "ChildFirst" + i;
+                if (!(r[colNameAge] is System.DBNull) &&
+                    !(r[colNameFirstName] is System.DBNull) &&
+                    int.TryParse((string)r[colNameAge], out age) &&
+                    age < 18)
                 {
-                    r["R" + (count + index).ToString()] = prefix + strAgeRangePretty + ": " + Pretty(n);
+                    string firstName = Pretty(((string)r[colNameFirstName]).Trim());
+                    string prefix = "Blue     Blue     Green   .        ";
+                    if (age == 17)
+                        prefix = ".        .        .       GftCrd   ";
+
+                    r["R" + (i-1).ToString()] = prefix + age + ": " + firstName;
                     bool bFirst = string.IsNullOrEmpty(((string)r[ColumnName.Kids]));
-                    r[ColumnName.Kids] = r[ColumnName.Kids] + (bFirst ? "" : ", ") + Pretty(n.Trim());
+                    r[ColumnName.Kids] = r[ColumnName.Kids] + (bFirst ? "" : ", ") + firstName;
                 }
-                index++;
             }
-
-            count += num;
-
-            return count;
         }
 
         #region DBRead_Write
@@ -926,7 +908,29 @@ namespace addresses
         {
             int CountKids(DataRow e, Gender gender, int ageBegin, int ageEnd)
             {
-                return 0;
+                int count = 0;
+                for(int i=1; i<=10; i++)
+                {
+                    string colNameAge = "ChildAge" + i;
+                    string colNameGender = "ChildGender" + i;
+                    if (!(e[colNameAge] is System.DBNull) &&
+                        !(e[colNameGender] is System.DBNull) &&
+                        ((string)e[colNameGender]).Length > 0)
+                    {
+                        char firstChar = ((string)e[colNameGender])[0];
+                        if ((gender == Gender.Male && firstChar == 'M') ||
+                            (gender == Gender.Female && firstChar == 'F'))
+                        {
+                            int age = -1;
+                            if (int.TryParse((string)e[colNameAge], out age))
+                            {
+                                if (age >= ageBegin && age <= ageEnd)
+                                    count++;
+                            }
+                        }
+                    }
+                }
+                return count;                
             }
 
             _currentOperation.Value = "Computing BreakOut";
@@ -1109,6 +1113,8 @@ namespace addresses
             int currentProgress = -1;
             int progress = 0;
             _currentOperation.Value = "Checking for Similar Children";
+
+            // construct the data to search
             foreach (DataRow r1 in this.Data.Rows)
             {
                 progress++;
@@ -1198,12 +1204,12 @@ namespace addresses
             foreach (var tuple1 in dictControlNumberToChildrenIndex)
             {
                 if(!dictControlNumberProperties.ContainsKey(tuple1.Key) )
-                    dictControlNumberProperties[tuple1.Key] = new Dictionary<string, string>();
-                
+                    dictControlNumberProperties[tuple1.Key] = new Dictionary<string, string>();                
             }
 
             progress = 0;
             currentProgress = -1;
+            // for each submission (given by ControlNumber) check to see how many other submissions are similar.
             foreach (var tuple1 in dictControlNumberToChildrenIndex)
             {
                 progress++;
@@ -1212,17 +1218,21 @@ namespace addresses
                     currentProgress = (int)((double)progress / (double)dictControlNumberToChildrenIndex.Count * 10f);
                     _currentOperation.Value = currentProgress.ToString();
                 }
+                // are there at least 2 children
                 if (tuple1.Value.Length > 2)
                 {
+                    // examine all other submissions
                     foreach (var tuple2 in dictControlNumberToChildrenIndex)
                     {
                         if (tuple2.Value.Length < 3 ||
                             tuple2.Key == tuple1.Key) continue;
 
+                        // merge the two submissions into one list called 'merged'
                         HashSet<int> merged = new HashSet<int>();
                         foreach (var val in tuple1.Value) merged.Add(val);
                         foreach (var val in tuple2.Value) merged.Add(val);
 
+                        // if the length of merged is less than 70% of the combined length of both together, then there are a significant number of duplicates
                         if (merged.Count < .7 * (tuple1.Value.Length + tuple2.Value.Length))
                             dictControlNumberProperties[tuple1.Key]["ChildrenDupsIssue"] += tuple2.Key + '(' + dictControlNumberProperties[tuple2.Key]["index"] + "),";
                     }
@@ -1258,9 +1268,12 @@ namespace addresses
                                     ColumnName.ChildFirst10,};
             foreach (var colName in colNames)
             {
-                string name = ((string)r[colName]).Trim();
-                if(name.Length > 0)
-                    childrenNames.Add(name);
+                if (!(r[colName] is System.DBNull))
+                {
+                    string name = ((string)r[colName]);
+                    if (!string.IsNullOrEmpty(name))
+                        childrenNames.Add(name);
+                }
             }
 
             int[] childrenIndexes = new int[childrenNames.Count];
@@ -1268,7 +1281,6 @@ namespace addresses
 
             foreach (var name in childrenNames)
             {
-
                 if (dictNameToIndex.TryGetValue(name, out int nameIndex))
                 {
                     childrenIndexes[index] = nameIndex;
