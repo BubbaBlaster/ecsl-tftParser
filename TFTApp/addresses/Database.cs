@@ -289,24 +289,27 @@ namespace addresses
                                 string tag = tagInfo[ii].Trim(new char[] { '"', '\\', ',' });
                                 row[header[ii]] = Pretty(tag);
                             }
-                            row[ColumnName.State] = "Texas";
-                            row[ColumnName.TimeSlot] = string.Empty;
-                            row[ColumnName.TimeSlotIndex] = string.Empty;
-                            row[ColumnName.Organization] = "ToysForTots";
-                            int total = 0;
-                            if (!string.IsNullOrEmpty((string)row[ColumnName.ChildAge1])) total++;
-                            if (!string.IsNullOrEmpty((string)row[ColumnName.ChildAge2])) total++;
-                            if (!string.IsNullOrEmpty((string)row[ColumnName.ChildAge3])) total++;
-                            if (!string.IsNullOrEmpty((string)row[ColumnName.ChildAge4])) total++;
-                            if (!string.IsNullOrEmpty((string)row[ColumnName.ChildAge5])) total++;
-                            if (!string.IsNullOrEmpty((string)row[ColumnName.ChildAge6])) total++;
-                            if (!string.IsNullOrEmpty((string)row[ColumnName.ChildAge7])) total++;
-                            if (!string.IsNullOrEmpty((string)row[ColumnName.ChildAge8])) total++;
-                            if (!string.IsNullOrEmpty((string)row[ColumnName.ChildAge9])) total++;
-                            if (!string.IsNullOrEmpty((string)row[ColumnName.ChildAge10])) total++;
-                            row[ColumnName.Total] = total;
+                            if ((string)row[ColumnName.Status] == "Pending")
+                            {
+                                row[ColumnName.State] = "Texas";
+                                row[ColumnName.TimeSlot] = string.Empty;
+                                row[ColumnName.TimeSlotIndex] = string.Empty;
+                                row[ColumnName.Organization] = "ToysForTots";
+                                int total = 0;
+                                if (!string.IsNullOrEmpty((string)row[ColumnName.ChildAge1])) total++;
+                                if (!string.IsNullOrEmpty((string)row[ColumnName.ChildAge2])) total++;
+                                if (!string.IsNullOrEmpty((string)row[ColumnName.ChildAge3])) total++;
+                                if (!string.IsNullOrEmpty((string)row[ColumnName.ChildAge4])) total++;
+                                if (!string.IsNullOrEmpty((string)row[ColumnName.ChildAge5])) total++;
+                                if (!string.IsNullOrEmpty((string)row[ColumnName.ChildAge6])) total++;
+                                if (!string.IsNullOrEmpty((string)row[ColumnName.ChildAge7])) total++;
+                                if (!string.IsNullOrEmpty((string)row[ColumnName.ChildAge8])) total++;
+                                if (!string.IsNullOrEmpty((string)row[ColumnName.ChildAge9])) total++;
+                                if (!string.IsNullOrEmpty((string)row[ColumnName.ChildAge10])) total++;
+                                row[ColumnName.Total] = total;
 
-                            rawTFTData.Rows.Add(row);
+                                rawTFTData.Rows.Add(row);
+                            }
                         }
                         if (sr.EndOfStream)
                             go = false;
@@ -439,28 +442,31 @@ namespace addresses
                                 }
                             }
 
-                            if (lastRow != null && string.Compare(lastFamilyID, (string)row[ColumnName.FamilyID]) == 0) // merge into last
+                            if (int.Parse((string)row[ColumnName.FamilyID]) > 0)
                             {
-                                totalKidsInFamily++;
-                                lastRow[ColumnName.ChildAge + totalKidsInFamily] = row[ColumnName.ChildAge];
-                                lastRow[ColumnName.ChildFirst + totalKidsInFamily] = row[ColumnName.ChildFirst];
-                                lastRow[ColumnName.ChildLast + totalKidsInFamily] = row[ColumnName.ChildLast];
-                                lastRow[ColumnName.ChildGender + totalKidsInFamily] = row[ColumnName.ChildGender];
-                                lastRow[ColumnName.Total] = totalKidsInFamily;
+                                if (lastRow != null && string.Compare(lastFamilyID, (string)row[ColumnName.FamilyID]) == 0) // merge into last
+                                {
+                                    totalKidsInFamily++;
+                                    lastRow[ColumnName.ChildAge + totalKidsInFamily] = row[ColumnName.ChildAge];
+                                    lastRow[ColumnName.ChildFirst + totalKidsInFamily] = row[ColumnName.ChildFirst];
+                                    lastRow[ColumnName.ChildLast + totalKidsInFamily] = row[ColumnName.ChildLast];
+                                    lastRow[ColumnName.ChildGender + totalKidsInFamily] = row[ColumnName.ChildGender];
+                                    lastRow[ColumnName.Total] = totalKidsInFamily;
+                                }
+                                else
+                                {
+                                    totalKidsInFamily = 1;
+                                    lastFamilyID = (string)row[ColumnName.FamilyID];
+                                    lastRow = row;
+                                    row[ColumnName.ControlNumber] = row[ColumnName.FamilyID];
+                                    row[ColumnName.ChildAge1] = row[ColumnName.ChildAge];
+                                    row[ColumnName.ChildFirst1] = row[ColumnName.ChildFirst];
+                                    row[ColumnName.ChildLast1] = row[ColumnName.ChildLast];
+                                    row[ColumnName.ChildGender1] = row[ColumnName.ChildGender];
+                                    row[ColumnName.Total] = totalKidsInFamily;
+                                    rawPSData.Rows.Add(row);
+                                }
                             }
-                            else
-                            {
-                                totalKidsInFamily = 1;
-                                lastFamilyID = (string)row[ColumnName.FamilyID];
-                                lastRow = row;
-                                row[ColumnName.ControlNumber] = row[ColumnName.FamilyID];
-                                row[ColumnName.ChildAge1] = row[ColumnName.ChildAge];
-                                row[ColumnName.ChildFirst1] = row[ColumnName.ChildFirst];
-                                row[ColumnName.ChildLast1] = row[ColumnName.ChildLast];
-                                row[ColumnName.ChildGender1] = row[ColumnName.ChildGender];
-                                row[ColumnName.Total] = totalKidsInFamily;
-                                rawPSData.Rows.Add(row);
-                            }                            
                         }
                         if (sr.EndOfStream)
                             go = false;
@@ -1135,6 +1141,7 @@ namespace addresses
                 td["nameComposite"] = (((string)r1[ColumnName.ContactFirst]) + "---").Substring(0, 3).ToUpper() +
                                       (((string)r1[ColumnName.ContactLast]) + "---").Substring(0, 3).ToUpper();
                 td["SimilarEntryIssues"] = string.Empty;
+                td["SimilarEntryList"] = string.Empty;
             }
 
             progress = 0;
@@ -1147,9 +1154,11 @@ namespace addresses
                     currentProgress = (int)((double)progress / (double)dictControlNumberToChildrenIndex.Count * 10f);
                     _currentOperation.Value = currentProgress.ToString();
                 }
+                int t1 = int.Parse(tuple1.Key);
                 foreach (var tuple2 in dictControlNumberProperties)
                 {
-                    if (tuple1.Key == tuple2.Key) continue;
+                    int t2 = int.Parse(tuple2.Key);
+                    if (t1 >= t2) continue;                    
 
                     if( tuple1.Value["streetNum"].Length > 0 && tuple1.Value["streetNum"] == tuple2.Value["streetNum"] &&
                         tuple1.Value["streetName"].Length > 5 && tuple1.Value["streetName"] == tuple2.Value["streetName"] ||
@@ -1161,29 +1170,111 @@ namespace addresses
                         foreach (var val in dictControlNumberToChildrenIndex[tuple2.Key]) merged.Add(val);
 
                         if (merged.Count < dictControlNumberToChildrenIndex[tuple1.Key].Length + dictControlNumberToChildrenIndex[tuple2.Key].Length)
+                        {
                             dictControlNumberProperties[tuple1.Key]["SimilarEntryIssues"] += tuple2.Key +
                                 "(" + dictControlNumberProperties[tuple2.Key]["index"] + "),";
+                            dictControlNumberProperties[tuple1.Key]["SimilarEntryList"] += tuple2.Key + ",";
+                        }
                     }
                 }
             }
 
-            StreamWriter sw = new StreamWriter(_OutputDir + "/SimilarEntryIssues.dat");
-            foreach (var tuple in dictControlNumberProperties)
             {
-                if (!string.IsNullOrEmpty(tuple.Value["SimilarEntryIssues"]))
-                    sw.WriteLine(tuple.Key + "(" + tuple.Value["index"] + ") : " + tuple.Value["SimilarEntryIssues"]);
+                StreamWriter sw = new StreamWriter(_OutputDir + "/SimilarEntryIssues.dat");
+                foreach (var tuple in dictControlNumberProperties)
+                {
+                    if (!string.IsNullOrEmpty(tuple.Value["SimilarEntryIssues"]))
+                        sw.WriteLine(tuple.Key + "(" + tuple.Value["index"] + ") : " + tuple.Value["SimilarEntryIssues"]);
+                }
+                sw.Close();
             }
-            sw.Close();
+
+            {
+                StreamWriter sw = new StreamWriter(_OutputDir + "/SimilarEntryIssuesReport.txt");
+                string strHeading = "------------------------------------------------------------------------------";
+                foreach (var tuple in dictControlNumberProperties)
+                {
+                    if (!string.IsNullOrEmpty(tuple.Value["SimilarEntryIssues"]))
+                    {
+                        sw.WriteLine(strHeading);
+                        WriteEntry(sw, Data, tuple.Key);
+                        sw.WriteLine("                                                                is SIMILAR TO");
+                        WriteList(sw, Data, tuple.Value["SimilarEntryList"]);                        
+                    }
+                }
+                sw.Close();
+            }
         }
+
+        private void WriteList(StreamWriter sw, DataTable data, string v)
+        {
+            string[] list = SplitCSV(v);
+            foreach(var key in list)
+            {
+                if (!string.IsNullOrEmpty(key))
+                {
+                    sw.WriteLine("   - - - - - - -");
+                    WriteEntry(sw, data, key);
+                }
+            }
+        }
+
+        private void WriteEntry(StreamWriter sw, DataTable data, string key)
+        {
+            var row = data.Rows.Find(key);
+            if (row == null)
+                throw new NoNullAllowedException("Found null row...");
+            WriteFamily(sw, row);
+        }
+
+        private void WriteFamily(StreamWriter sw, DataRow row)
+        {
+            string cn = S(row[ColumnName.ControlNumber]);
+            int nCN = int.Parse(cn);
+            if (nCN < 50000)
+                sw.WriteLine("Project Smile Family - " + S(row[ColumnName.Volunteer]));
+            else
+                sw.WriteLine("TFT Entry");
+            sw.WriteLine(S(row[ColumnName.ControlNumber]) + "   " + S(row[ColumnName.ContactLast]) + ", " + S(row[ColumnName.ContactFirst]));
+            sw.WriteLine(S(row[ColumnName.Address]) + ", " + S(row[ColumnName.City]) + "  " + S(row[ColumnName.Zip]));
+            sw.WriteLine(S(row[ColumnName.Phone]) + " - " + S(row[ColumnName.Email]));
+            for (int i = 1; i <= 10; i++)
+            {
+                if (!(row["ChildFirst" + i] is System.DBNull))
+                {
+                    if(S(row["ChildFirst" + i]).Length > 0)
+                        sw.WriteLine(S(row["ChildFirst" + i]) + " " + S(row["ChildLast" + i]) + " " + S(row["ChildAge" + i]) + " (" +
+                            S(row["ChildGender" + i]) + ")");
+                }
+            }
+            
+        }
+
+        private string S(object v)
+        {
+            if (v == null) return string.Empty;
+            return (string)v;
+        }
+
+
 
         #region SimilarChildrenListFinder
         private Dictionary<string, int[]> dictControlNumberToChildrenIndex = new Dictionary<string, int[]>();
 
         public void FindSimilarChildrenLists()
         {
+            bool AreNumbersUnique(int[] nameIndexes)
+            {
+                HashSet<int> hash = new HashSet<int>();
+                foreach (var n in nameIndexes)
+                    hash.Add(n);
+                return (hash.Count == nameIndexes.Length);
+            }
+
             int currentProgress = -1;
             int progress = 0;
             _currentOperation.Value = "Checking for Similar Children";
+            List<string> CNsWithChildrenNamingIssues = new List<string>();
             foreach (DataRow r in this.Data.Rows)
             {
                 progress++;
@@ -1195,9 +1286,12 @@ namespace addresses
                 }
                 (int[] nameIndexes, int numChildren) = GetChildren(r);
                 string cn = (string)r[ColumnName.ControlNumber];
+                if (!AreNumbersUnique(nameIndexes))
+                    CNsWithChildrenNamingIssues.Add(cn);
                 dictControlNumberToChildrenIndex[cn] = nameIndexes;
                 dictControlNumberProperties[cn] = new Dictionary<string, string>();
                 dictControlNumberProperties[cn]["ChildrenDupsIssue"] = string.Empty;
+                dictControlNumberProperties[cn]["ChildrenDupsList"] = string.Empty;
                 dictControlNumberProperties[cn]["index"] = (string)r[ColumnName.BookNumber] + ',' + (string)r[ColumnName.PageNumber];
             }
             _currentOperation.Value = " - Clearing Dups List ";
@@ -1206,12 +1300,21 @@ namespace addresses
                 if(!dictControlNumberProperties.ContainsKey(tuple1.Key) )
                     dictControlNumberProperties[tuple1.Key] = new Dictionary<string, string>();                
             }
+            {
+                StreamWriter sw = new StreamWriter(_OutputDir + "/ChildNamingIssues.dat");
+                foreach (var cn in CNsWithChildrenNamingIssues)
+                {
+                    sw.WriteLine(cn);
+                }
+                sw.Close();
+            }
 
             progress = 0;
             currentProgress = -1;
             // for each submission (given by ControlNumber) check to see how many other submissions are similar.
             foreach (var tuple1 in dictControlNumberToChildrenIndex)
             {
+                int t1 = int.Parse(tuple1.Key);
                 progress++;
                 if (currentProgress != (int)((double)progress / (double)dictControlNumberToChildrenIndex.Count * 10f))
                 {
@@ -1224,8 +1327,9 @@ namespace addresses
                     // examine all other submissions
                     foreach (var tuple2 in dictControlNumberToChildrenIndex)
                     {
+                        int t2 = int.Parse(tuple2.Key);
                         if (tuple2.Value.Length < 3 ||
-                            tuple2.Key == tuple1.Key) continue;
+                            t1 == t2) continue;
 
                         // merge the two submissions into one list called 'merged'
                         HashSet<int> merged = new HashSet<int>();
@@ -1234,18 +1338,37 @@ namespace addresses
 
                         // if the length of merged is less than 70% of the combined length of both together, then there are a significant number of duplicates
                         if (merged.Count < .7 * (tuple1.Value.Length + tuple2.Value.Length))
+                        {
                             dictControlNumberProperties[tuple1.Key]["ChildrenDupsIssue"] += tuple2.Key + '(' + dictControlNumberProperties[tuple2.Key]["index"] + "),";
+                            dictControlNumberProperties[tuple1.Key]["ChildrenDupsList"] += tuple2.Key + ",";
+                        }
                     }
                 }
             }
 
-            StreamWriter sw = new StreamWriter(_OutputDir + "/ChildrenDupsIssues.dat");
+            StreamWriter sw2 = new StreamWriter(_OutputDir + "/ChildrenDupsIssues.dat");
             foreach (var tuple in dictControlNumberProperties)
             {
                 if (!string.IsNullOrEmpty(tuple.Value["ChildrenDupsIssue"]))
-                    sw.WriteLine(tuple.Key + '(' + tuple.Value["index"] +") : " + tuple.Value["ChildrenDupsIssue"]);
+                    sw2.WriteLine(tuple.Key + '(' + tuple.Value["index"] +") : " + tuple.Value["ChildrenDupsIssue"]);
             }
-            sw.Close();
+            sw2.Close();
+
+            {
+                StreamWriter sw = new StreamWriter(_OutputDir + "/ChildrenDupsIssuesReport.txt");
+                string strHeading = "------------------------------------------------------------------------------";
+                foreach (var tuple in dictControlNumberProperties)
+                {
+                    if (!string.IsNullOrEmpty(tuple.Value["ChildrenDupsIssue"]))
+                    {
+                        sw.WriteLine(strHeading);
+                        WriteEntry(sw, Data, tuple.Key);
+                        sw.WriteLine("                                                  may have duplicate children");
+                        WriteList(sw, Data, tuple.Value["ChildrenDupsList"]);
+                    }
+                }
+                sw.Close();
+            }
         }
 
         private Dictionary<string, int> dictNameToIndex = new Dictionary<string, int>();
