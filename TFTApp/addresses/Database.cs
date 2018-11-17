@@ -18,9 +18,10 @@ namespace addresses
         private DataTable rawTFTData;
         private DataTable rawPSData;
         private DataTable rawSpecialData;
+        private DataTable rawNoShows;
         ObservableString _currentOperation = ObservableString.Get("CurrentOperation");
         private string _OutputDir, _InputDir;
-        private string _TFT_Filename, _PS_Filename, _Special_Filename;
+        private string _TFT_Filename, _PS_Filename, _Special_Filename, _NoShow_Filename;
 
         public Database()
         {
@@ -43,6 +44,9 @@ namespace addresses
             AppConfiguration.AppConfig.TryGetSetting("Data.SpecialFilename", out Setting specialname);
             _Special_Filename = specialname.Value;
 
+            AppConfiguration.AppConfig.TryGetSetting("Data.NoShowFilename", out Setting noShowName);
+            _NoShow_Filename = noShowName.Value;
+
             Clear();
         }
 
@@ -55,6 +59,7 @@ namespace addresses
                 ReadTFTRawData();
                 ReadPSRawData();
                 ReadSpecialRawData();
+                ReadNoShows();
 
                 Merge();
 
@@ -70,13 +75,89 @@ namespace addresses
                 WriteTFTEmails();
 
                 CheckDuplicates();
-
+                CheckNoShows();
+                
                 ComputeNoShows();
             }
             catch(Exception e)
             {
                 _log.Fatal(e, "Exception while creating database.");
             }
+        }
+
+        private bool ReadNoShows()
+        {
+            _currentOperation.Value = "Reading NoShows";
+            var raw = rawNoShows = new DataTable();
+            try
+            {
+                int lineNumber = 0;
+                string filename = _InputDir + "/" + _NoShow_Filename;
+                if (!File.Exists(filename))
+                {
+                    _log.Warning("NoShows DB: '" + _NoShow_Filename + "' not found in '" + _InputDir + "' - Skipping");
+                    _currentOperation.Value = "NoShow DB: '" + _NoShow_Filename + "' not found in '" + _InputDir + "' - Skipping";
+                    return false;
+                }
+
+                using (var fs = new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                using (var sr = new StreamReader(fs, Encoding.Default))
+                {
+                    String line = sr.ReadLine();
+                    lineNumber++;
+                    String[] header = SplitCSV(line);
+                    for (int i = 0; i < header.Length; i++)
+                    {
+                        string columnName = header[i] = header[i].Trim(new char[] { '"', '\\', ',' });
+                        raw.Columns.Add(columnName);
+                    }
+                    raw.Columns.Add(ColumnName.ControlNumber);
+                    raw.Columns.Add(ColumnName.Phone2);
+                    raw.PrimaryKey = new DataColumn[1] { raw.Columns[ColumnName.ControlNumber] };
+
+                    bool go = true;
+                    int index = 0;
+                    string prevPhone = string.Empty;
+                    do
+                    {
+                        line = sr.ReadLine();
+                        string[] tagInfo = SplitCSV(line);
+
+                        if (tagInfo.Length != header.Length)
+                        {
+                            _log.Warning("Line " + lineNumber + " - Length wrong: " + line);
+                            go = false;
+                        }
+                        else
+                        {
+                            DataRow row = raw.NewRow();
+                            for (int ii = 0; ii < header.Length; ii++)
+                            {
+                                string tag = tagInfo[ii].Trim(new char[] { '"', '\\', ',' });
+                                row[header[ii]] = Pretty(tag);
+                            }
+
+                            if (string.Compare(prevPhone, (string)row[ColumnName.Phone]) != 0)
+                            {
+                                row[ColumnName.ControlNumber] = index.ToString();
+                                index++;
+                                CorrectPhone(row);
+                                raw.Rows.Add(row);
+                                prevPhone = (string)row[ColumnName.Phone];
+                            }
+                        }
+                        if (sr.EndOfStream)
+                        go = false;
+                    } while (go);
+                }
+            }
+            catch (Exception e)
+            {
+                _log.Warning(e, _currentOperation.Value = "Reading NoShow DB - Failed");
+                return false;
+            }
+            _currentOperation.Value = "Reading NoShow DB - Done";
+            return true;
         }
 
         private void ComputeNoShows()
@@ -149,8 +230,7 @@ namespace addresses
 
             Data.PrimaryKey = new DataColumn[1] { Data.Columns[ColumnName.ControlNumber] };
         }
-
-
+        
         static Regex csvSplit = new Regex("(?:^|,)(\"(?:[^\"]+|\"\")*\"|[^,]*)", RegexOptions.Compiled);
 
         public static string[] SplitCSV(string input)
@@ -172,7 +252,7 @@ namespace addresses
         private bool ReadSpecialRawData()
         {
             _currentOperation.Value = "Reading Special DB";
-            rawSpecialData = new DataTable();
+            var raw = rawSpecialData = new DataTable();
             try
             {
                 int lineNumber = 0;
@@ -193,10 +273,12 @@ namespace addresses
                     for (int i = 0; i < header.Length; i++)
                     {
                         string columnName = header[i] = header[i].Trim(new char[] { '"', '\\', ',' });
-                        rawSpecialData.Columns.Add(columnName);
+                        raw.Columns.Add(columnName);
                     }
-                    rawSpecialData.Columns.Add(ColumnName.Organization);
-                    rawSpecialData.PrimaryKey = new DataColumn[1] { rawSpecialData.Columns[ColumnName.ControlNumber] };
+                    raw.Columns.Add(ColumnName.Organization);
+                    raw.Columns.Add(ColumnName.Total);
+                    raw.Columns.Add(ColumnName.Status);
+                    raw.PrimaryKey = new DataColumn[1] { raw.Columns[ColumnName.ControlNumber] };
 
                     bool go = true;
                     do
@@ -211,16 +293,29 @@ namespace addresses
                         }
                         else
                         {
-                            DataRow row = rawSpecialData.NewRow();
+                            DataRow row = raw.NewRow();
                             for (int ii = 0; ii < header.Length; ii++)
                             {
                                 string tag = tagInfo[ii].Trim(new char[] { '"', '\\', ',' });
                                 row[header[ii]] = Pretty(tag);
                             }
                             row[ColumnName.State] = "Texas";
-                            row[ColumnName.Organization] = string.Empty;
+                            row[ColumnName.Organization] = "ECSL";
+                            row[ColumnName.Status] = "Pending";
+                            int total = 0;
+                            if (!string.IsNullOrEmpty((string)row[ColumnName.ChildAge1])) total++;
+                            if (!string.IsNullOrEmpty((string)row[ColumnName.ChildAge2])) total++;
+                            if (!string.IsNullOrEmpty((string)row[ColumnName.ChildAge3])) total++;
+                            if (!string.IsNullOrEmpty((string)row[ColumnName.ChildAge4])) total++;
+                            if (!string.IsNullOrEmpty((string)row[ColumnName.ChildAge5])) total++;
+                            if (!string.IsNullOrEmpty((string)row[ColumnName.ChildAge6])) total++;
+                            if (!string.IsNullOrEmpty((string)row[ColumnName.ChildAge7])) total++;
+                            if (!string.IsNullOrEmpty((string)row[ColumnName.ChildAge8])) total++;
+                            if (!string.IsNullOrEmpty((string)row[ColumnName.ChildAge9])) total++;
+                            if (!string.IsNullOrEmpty((string)row[ColumnName.ChildAge10])) total++;
+                            row[ColumnName.Total] = total;
 
-                            rawSpecialData.Rows.Add(row);
+                            raw.Rows.Add(row);
                         }
                         if (sr.EndOfStream)
                             go = false;
@@ -267,6 +362,7 @@ namespace addresses
                     rawTFTData.Columns.Add(ColumnName.TimeSlot);
                     rawTFTData.Columns.Add(ColumnName.TimeSlotIndex);
                     rawTFTData.Columns.Add(ColumnName.Total);
+                    rawTFTData.Columns.Add(ColumnName.Address2);
                     rawTFTData.PrimaryKey = new DataColumn[1] { rawTFTData.Columns[ColumnName.ControlNumber] };
 
                     bool go = true;
@@ -352,7 +448,7 @@ namespace addresses
                         rawPSData.Columns.Add(columnName);
                     }
                     #region Add Missing Rows
-                    rawPSData.Columns.Add(ColumnName.ControlNumber);
+                    //rawPSData.Columns.Add(ColumnName.ControlNumber);
                     rawPSData.Columns.Add(ColumnName.Organization);
                     rawPSData.Columns.Add(ColumnName.Phone2);
                     rawPSData.Columns.Add(ColumnName.TimeSlot);
@@ -718,7 +814,8 @@ namespace addresses
             }
 
             row[ColumnName.Phone] = phoneString((string)row[ColumnName.Phone]);
-            row[ColumnName.Phone2] = phoneString((string)row[ColumnName.Phone2]);
+            if( !(row[ColumnName.Phone2] is System.DBNull))
+                row[ColumnName.Phone2] = phoneString((string)row[ColumnName.Phone2]);
         }
 
         private void GenerateRegistrationData(DataRow r)
@@ -1087,6 +1184,47 @@ namespace addresses
             CheckForDuplicatePhones();
         }
 
+        public void CheckNoShows()
+        {
+            _currentOperation.Value = "Checking for No Shows from previous year.";
+            System.Threading.Thread.Sleep(100);
+
+            // construct the data to search
+            HashSet<string> NoShowPhones = new HashSet<string>();
+            foreach (DataRow r in rawNoShows.Rows)
+                NoShowPhones.Add((string)r[ColumnName.Phone]);
+
+            HashSet<string> NoShowEmails = new HashSet<string>();
+            foreach (DataRow r in rawNoShows.Rows)
+            {
+                if( !(r[ColumnName.Email] is System.DBNull))
+                    NoShowEmails.Add((string)r[ColumnName.Email]);
+            }
+
+            StreamWriter sw = new StreamWriter(_OutputDir + "/PotentialNoShows.txt");
+
+            foreach (DataRow r1 in this.Data.Rows)
+            {
+                bool Write = false;
+                if (NoShowPhones.Contains((string)r1[ColumnName.Phone]))
+                {
+                    sw.WriteLine("--------------------------------------------------------------------- P H O N E");
+                    Write = true;
+                }
+
+                if ( !(r1[ColumnName.Email] is System.DBNull) &&
+                      NoShowEmails.Contains((string)r1[ColumnName.Email]))
+                {
+                    sw.WriteLine("--------------------------------------------------------------------- E M A I L");
+                    Write = true;
+                }
+                if(Write)
+                    WriteFamily(sw, r1);
+            }
+            sw.Close();
+            _currentOperation.Value = "Checking for No Shows from previous year - Done.";
+        }
+
         private Dictionary<string, Dictionary<string, string>> dictControlNumberProperties = new Dictionary<string, Dictionary<string, string>>();
         private void CheckForDuplicatePhones()
         {
@@ -1134,8 +1272,13 @@ namespace addresses
                 if (!dictControlNumberProperties.ContainsKey(cn))
                     dictControlNumberProperties[cn] = new Dictionary<string, string>();
                 var td = dictControlNumberProperties[cn];
-                td["streetNum"] = FirstNumberInString((string)r1[ColumnName.Address]);
-                td["streetName"] = Pretty(StringAfterNumber((string)r1[ColumnName.Address]));
+                string address;
+                if (!(r1[ColumnName.Address2] is System.DBNull))
+                    address = (string)r1[ColumnName.Address] + (string)r1[ColumnName.Address2];
+                else
+                    address = (string)r1[ColumnName.Address];
+                td["streetNum"] = FirstNumberInString(address);
+                td["streetName"] = Pretty(StringAfterNumber(address));
                 td["phone"] = (string)r1[ColumnName.Phone];
                 td["email"] = (string)r1[ColumnName.Email];
                 td["nameComposite"] = (((string)r1[ColumnName.ContactFirst]) + "---").Substring(0, 3).ToUpper() +
@@ -1233,10 +1376,18 @@ namespace addresses
             int nCN = int.Parse(cn);
             if (nCN < 50000)
                 sw.WriteLine("Project Smile Family - " + S(row[ColumnName.Volunteer]));
+            else if(nCN > 999990)
+                sw.WriteLine("Special Family");
             else
                 sw.WriteLine("TFT Entry");
             sw.WriteLine(S(row[ColumnName.ControlNumber]) + "   " + S(row[ColumnName.ContactLast]) + ", " + S(row[ColumnName.ContactFirst]));
-            sw.WriteLine(S(row[ColumnName.Address]) + ", " + S(row[ColumnName.City]) + "  " + S(row[ColumnName.Zip]));
+            if (!(row[ColumnName.Address2] is System.DBNull))
+            {
+                sw.WriteLine(S(row[ColumnName.Address]) + " " + S(row[ColumnName.Address2]) +
+                    ", " + S(row[ColumnName.City]) + "  " + S(row[ColumnName.Zip]));
+            }
+            else
+                sw.WriteLine(S(row[ColumnName.Address]) + ", " + S(row[ColumnName.City]) + "  " + S(row[ColumnName.Zip]));
             sw.WriteLine(S(row[ColumnName.Phone]) + " - " + S(row[ColumnName.Email]));
             for (int i = 1; i <= 10; i++)
             {
@@ -1252,7 +1403,7 @@ namespace addresses
 
         private string S(object v)
         {
-            if (v == null) return string.Empty;
+            if (v is System.DBNull) return string.Empty;
             return (string)v;
         }
 

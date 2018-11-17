@@ -18,6 +18,7 @@
         public const string Contact2Last = "CONTACT2 LAST";
         public const string Contact2First = "CONTACT2 FIRST";
         public const string Address = "ADDRESS";
+        public const string Address2 = "ADDRESS2";
         public const string City = "CITY";
         public const string State = "STATE";
         public const string Zip = "ZIP";
@@ -79,6 +80,7 @@
         public const string ChildAge10 = "CHILDAGE10";
         public const string CoordID = "COORDID";
 
+        public const string Penalty = "PENALTY";
         public const string Total = "TOTAL";
         public const string Organization = "ORGANIZATION";
         public const string Volunteer = "VOLUNTEER"; // PS
@@ -106,11 +108,12 @@
         {
             ControlNumber,
             Organization,
-            DTSubmitted,
+            Penalty,
             Status,
             TimeSlot,
             TimeSlotIndex,
             Address,
+            Address2,
             City,
             State,
             Zip,
