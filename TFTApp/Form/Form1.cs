@@ -46,7 +46,7 @@ namespace TFT
 
         private void _bGridChanged_PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
-            dataGridView1.DataSource = DB.Data;
+            dataGridView1.DataSource = DB._Data;
             dataGridView1.DoubleBuffered(true);
             dataGridView1.Update();
         }
@@ -60,7 +60,7 @@ namespace TFT
 
         private void OnDGChange()
         { 
-            dataGridView1.DataSource = DB.Data;
+            dataGridView1.DataSource = DB._Data;
             dataGridView1.DoubleBuffered(true);
         }
 
@@ -75,7 +75,7 @@ namespace TFT
         {
             var row = dataGridView1.Rows[e.RowIndex];
             var RowKey = row.Cells[ColumnName.ControlNumber].Value;
-            var DBRow = DB.Data.Rows.Find(RowKey);
+            var DBRow = DB._Data.Rows.Find(RowKey);
             string cName = dataGridView1.Columns[e.ColumnIndex].Name;
             DBRow[cName] = dataGridView1.Rows[e.RowIndex].Cells[e.ColumnIndex].Value;
 
@@ -91,7 +91,7 @@ namespace TFT
                 numRejectedChildren = 0, numRejectedEntries = 0,
                 numDuplicateChildren = 0, numDuplicateEntries = 0,
                 numOtherChildren = 0, numOtherEntries = 0;
-            foreach (DataRow r in DB.Data.Rows)
+            foreach (DataRow r in DB._Data.Rows)
             {
                 switch (((string)r[ColumnName.Status]))
                 {
@@ -143,7 +143,7 @@ namespace TFT
 
         private void Top5OrganizationsToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            using (var d = new Top5Analysis(DB.Data))
+            using (var d = new Top5Analysis(DB._Data))
             {
                 d.ShowDialog();
             }
@@ -153,7 +153,7 @@ namespace TFT
         {
             int totalKidsRegistered = 0;
             int totalProjectSmileKidsRegistered = 0;
-            foreach (DataRow dr in DB.Data.Rows)
+            foreach (DataRow dr in DB._Data.Rows)
             {
                 for (int i = 0; i < 10; i++)
                 {
@@ -173,16 +173,16 @@ namespace TFT
             while( !sr.EndOfStream )
             {
                 line = sr.ReadLine();
-                DataRow dr = DB.Data.Rows.Find(line);
+                DataRow dr = DB._Data.Rows.Find(line);
                 if (dr != null)
-                    DB.Data.Rows.Remove(dr);
+                    DB._Data.Rows.Remove(dr);
             }
             sr.Close();
 
             int totalKids = 0;
             int totalPSKids = 0;
-            int totalFamilies = DB.Data.Rows.Count;
-            foreach(DataRow dr in DB.Data.Rows)
+            int totalFamilies = DB._Data.Rows.Count;
+            foreach(DataRow dr in DB._Data.Rows)
             {
                 for (int i = 0; i < 10; i++)
                 {
