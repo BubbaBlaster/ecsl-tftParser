@@ -28,6 +28,10 @@
           "Value": "2017-NoShows.csv",
           "Settings": {}
         },
+        "NoShowsThisYearFilename": {
+          "Value": "NoShows.csv",
+          "Settings": {}
+        },
         "BannedFilename": {
           "Value": "Banned.csv",
           "Settings": {}

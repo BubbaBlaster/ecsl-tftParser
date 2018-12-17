@@ -24,7 +24,7 @@ namespace addresses
 
         ObservableString _currentOperation = ObservableString.Get("CurrentOperation");
         private string _OutputDir, _InputDir;
-        private string _TFT_Filename, _PS_Filename, _Special_Filename, _NoShow_Filename, _Banned_Filename;
+        private string _TFT_Filename, _PS_Filename, _Special_Filename, _NoShow_Filename, _Banned_Filename, _NoShowThisYear_Filename;
 
         HashSet<string> _NoShowPhones, _NoShowEmails, _BannedPhones, _BannedEmails;
 
@@ -51,6 +51,9 @@ namespace addresses
 
             AppConfiguration.AppConfig.TryGetSetting("Data.NoShowFilename", out Setting noShowName);
             _NoShow_Filename = noShowName.Value;
+
+            AppConfiguration.AppConfig.TryGetSetting("Data.NoShowsThisYearFilename", out Setting noShowThisYear);
+            _NoShowThisYear_Filename = noShowThisYear.Value;
 
             AppConfiguration.AppConfig.TryGetSetting("Data.BannedFilename", out Setting BannedName);
             _Banned_Filename = BannedName.Value;            
@@ -292,9 +295,10 @@ namespace addresses
             int totalKidsNoShowTFT = 0;
             int totalRegistrations = _Data.Rows.Count;
             int totalRegNoShowPS = 0;
+            int totalRegNoShowPSWithEmail = 0;
             int totalRegNoShowTFT = 0;
 
-            string filename = _InputDir + "/NoShows.csv";
+            string filename = _InputDir + "/" + _NoShowThisYear_Filename;
 
             if (!File.Exists(filename)) return;
 
@@ -320,6 +324,8 @@ namespace addresses
                         {
                             totalKidsNoShowPS += kids;
                             totalRegNoShowPS++;
+                            if (!string.IsNullOrEmpty((string)row[ColumnName.Email]))
+                                totalRegNoShowPSWithEmail++;
                         }
                         else
                         {
@@ -330,18 +336,39 @@ namespace addresses
                 } while (!sr.EndOfStream);
             }
 
+            int totalRegPSWithEmail = _Data.AsEnumerable().Count(a => a.Field<string>(ColumnName.Organization).Contains("Project Smile") &&
+                                                                      !string.IsNullOrEmpty(a.Field<string>(ColumnName.Email)));
+            int totalRegPSNoShowsWithPenalty =
+                _Data.AsEnumerable().Count(a => a.Field<string>(ColumnName.Organization).Contains("Project Smile") &&
+                                                !string.IsNullOrEmpty(a.Field<string>(ColumnName.Penalty)));
+            int totalRegTFTNoShowsWithPenalty =
+                _Data.AsEnumerable().Count(a => !a.Field<string>(ColumnName.Organization).Contains("Project Smile") &&
+                                                !string.IsNullOrEmpty(a.Field<string>(ColumnName.Penalty)));
+
             StreamWriter sw = new StreamWriter(_OutputDir + "/NoShowsStatistics.csv");
-            sw.WriteLine("Total Num Kids," + _totalKids);
-            sw.WriteLine("Total NoShows Kids," + totalKidsNoShow);
-            sw.WriteLine("Project Smile NoShows Kids," + totalKidsNoShowPS + "," + 100f * totalKidsNoShowPS / _totalKidsPS + "%\n");
-            sw.WriteLine("TFT NoShows Kids = " + totalKidsNoShowTFT + "," + 100f * totalKidsNoShowTFT / _totalKidsTFT + "%\n");
+            sw.WriteLine("Totals:");
+            sw.WriteLine("     Kids Served/Registered (no shows)       : {3}/{0} ({1} - {2:N1}%)", _totalKids, totalKidsNoShow, 100f * totalKidsNoShow / _totalKids, _totalKids - totalKidsNoShow);
+            sw.WriteLine("        Registration Breakdown by Age:");
+            sw.WriteLine("           Gender:  Total  -  0-2  -  3-6  -  7-11  -  12-16  -  17");
+            sw.WriteLine("           --------------------------------------------------------");
+            sw.WriteLine("           Girls:   {0,5}    {1,4}    {2,4}    {3,4}    {4,6}    {5,4}", _totalGirls_0_2 + _totalGirls_3_6 + _totalGirls_7_11 + _totalGirls_12_16 + _totalGirls_17,
+                _totalGirls_0_2, _totalGirls_3_6, _totalGirls_7_11, _totalGirls_12_16, _totalGirls_17);
+            sw.WriteLine("           Boys:    {0,5}    {1,4}    {2,4}    {3,4}    {4,6}    {5,4}", _totalBoys_0_2 + _totalBoys_3_6 + _totalBoys_7_11 + _totalBoys_12_16 + _totalBoys_17,
+                _totalBoys_0_2, _totalBoys_3_6, _totalBoys_7_11, _totalBoys_12_16, _totalBoys_17);
+            sw.WriteLine("     Families Served/Registered (no shows)   : {3}/{0} ({1} - {2:N1}%)", totalRegistrations, (totalRegNoShowPS + totalRegNoShowTFT), 100f *(totalRegNoShowPS + totalRegNoShowTFT) / totalRegistrations, totalRegistrations - (totalRegNoShowPS + totalRegNoShowTFT));
+            sw.WriteLine();
+            sw.WriteLine("Project Smile:");
+            sw.WriteLine("     Kids Registered (no shows)   : {0} ({1} - {2:N1}%)", _totalKidsPS, totalKidsNoShowPS, 100f * totalKidsNoShowPS / _totalKidsPS);
+            sw.WriteLine("     Registrations (no shows)     : {0} ({1} - {2:N1}%)", _totalRegPS, totalRegNoShowPS, 100f * totalRegNoShowPS / _totalRegPS);
+            sw.WriteLine("        Reg. with Email (no shows): {0} ({1} - {2:N1}%)", totalRegPSWithEmail, totalRegNoShowPSWithEmail, 100f * totalRegNoShowPSWithEmail / totalRegPSWithEmail);
+            sw.WriteLine("        Reg. Two Time NoShow      : {0}", totalRegPSNoShowsWithPenalty);
+            sw.WriteLine();
+            sw.WriteLine("Toys-for-Tots:");
+            sw.WriteLine("     Kids Registered (no shows)   : {0} ({1} - {2:N1}%)", _totalKidsTFT, totalKidsNoShowTFT, 100f * totalKidsNoShowTFT / _totalKidsTFT);
+            sw.WriteLine("     Registrations (no shows)     : {0} ({1} - {2:N1}%)", _totalRegTFT, totalRegNoShowTFT, 100f * totalRegNoShowTFT / _totalRegTFT);
+            sw.WriteLine("        Reg. Two Time NoShow      : {0}", totalRegTFTNoShowsWithPenalty);
 
-            sw.WriteLine("Total Num Registrations," + totalRegistrations);
-            sw.WriteLine("Total NoShow PS," + totalRegNoShowPS + "," + 100f * totalRegNoShowPS / _totalRegPS + "%\n");
-            sw.WriteLine("Total NoShow TFT," + totalRegNoShowTFT + "," + 100f * totalRegNoShowTFT / _totalRegTFT + "%\n");
             sw.Close();
-
-            WriteProjectNoShows();
         }
 
         private void Clear()
@@ -399,7 +426,6 @@ namespace addresses
                         string columnName = header[i] = header[i].Trim(new char[] { '"', '\\', ',' });
                         raw.Columns.Add(columnName);
                     }
-                    raw.Columns.Add(ColumnName.Organization);
                     raw.Columns.Add(ColumnName.Total);
                     raw.Columns.Add(ColumnName.Status);
                     raw.Columns.Add(ColumnName.Penalty);
@@ -425,7 +451,7 @@ namespace addresses
                                 row[header[ii]] = Pretty(tag);
                             }
                             row[ColumnName.State] = "Texas";
-                            row[ColumnName.Organization] = "ECSL";
+                            //row[ColumnName.Organization] = "ECSL";
                             row[ColumnName.Status] = "Pending";
                             int total = 0;
                             if (!string.IsNullOrEmpty((string)row[ColumnName.ChildAge1])) total++;
@@ -713,27 +739,26 @@ namespace addresses
 
         public void WriteSpecial()
         {
-            _currentOperation.Value = "Writing Special";
+            _currentOperation.Value = "Writing Late";
             var Entries = from myRow in _Data.AsEnumerable()
-                          where (myRow.Field<string>(ColumnName.ControlNumber).Contains("S"))
-                          orderby myRow.Field<string>(ColumnName.TimeSlot) descending, myRow.Field<string>(ColumnName.ContactLast)
+                          where (myRow.Field<string>(ColumnName.Organization).Contains("Late"))
+                          orderby myRow.Field<string>(ColumnName.ControlNumber) ascending, myRow.Field<string>(ColumnName.ContactLast)
                           select myRow;
 
             int page = 1;
             foreach (var e in Entries)
             {
-                e[ColumnName.BookNumber] = "Special";
+                e[ColumnName.BookNumber] = "Late";
                 e[ColumnName.PageNumber] = page++;
             }
-            WriteCSV("SpecialOut.csv", Entries, false);
+            WriteCSV("LateOut.csv", Entries, false);
         }
 
         public void WriteBook1()
         {
             _currentOperation.Value = "Writing Book1";
             var Entries = from myRow in _Data.AsEnumerable()
-                                where (myRow.Field<string>(ColumnName.ContactLast).CompareTo(_strBreak1End) <= 0 &&
-                                   !myRow.Field<string>(ColumnName.ControlNumber).Contains("S"))
+                                where (myRow.Field<string>(ColumnName.ContactLast).CompareTo(_strBreak1End) <= 0)
                                 orderby myRow.Field<string>(ColumnName.TimeSlotIndex) ascending, myRow.Field<string>(ColumnName.ContactLast)
                                 select myRow;
 
@@ -751,8 +776,7 @@ namespace addresses
             _currentOperation.Value = "Writing Book2";
             var Entries = from myRow in _Data.AsEnumerable()
                           where (myRow.Field<string>(ColumnName.ContactLast).CompareTo(_strBreak2End) <= 0 &&
-                                 myRow.Field<string>(ColumnName.ContactLast).CompareTo(_strBreak2Begin) >= 0 &&
-                                   !myRow.Field<string>(ColumnName.ControlNumber).Contains("S"))
+                                 myRow.Field<string>(ColumnName.ContactLast).CompareTo(_strBreak2Begin) >= 0)
                           orderby myRow.Field<string>(ColumnName.TimeSlotIndex) ascending, myRow.Field<string>(ColumnName.ContactLast)
                           select myRow;
 
@@ -770,8 +794,7 @@ namespace addresses
             _currentOperation.Value = "Writing Book3";
             var Entries = from myRow in _Data.AsEnumerable()
                           where (myRow.Field<string>(ColumnName.ContactLast).CompareTo(_strBreak3End) <= 0 &&
-                                 myRow.Field<string>(ColumnName.ContactLast).CompareTo(_strBreak3Begin) >= 0 &&
-                                   !myRow.Field<string>(ColumnName.ControlNumber).Contains("S"))
+                                 myRow.Field<string>(ColumnName.ContactLast).CompareTo(_strBreak3Begin) >= 0)
                           orderby myRow.Field<string>(ColumnName.TimeSlotIndex) ascending, myRow.Field<string>(ColumnName.ContactLast)
                           select myRow;
 
@@ -788,8 +811,7 @@ namespace addresses
         {
             _currentOperation.Value = "Writing Book4";
             var Entries = from myRow in _Data.AsEnumerable()
-                          where (myRow.Field<string>(ColumnName.ContactLast).CompareTo(_strBreak4Begin) >= 0 &&
-                                   !myRow.Field<string>(ColumnName.ControlNumber).Contains("S"))
+                          where (myRow.Field<string>(ColumnName.ContactLast).CompareTo(_strBreak4Begin) >= 0)
                           orderby myRow.Field<string>(ColumnName.TimeSlotIndex) ascending, myRow.Field<string>(ColumnName.ContactLast)
                           select myRow;
 
@@ -804,39 +826,24 @@ namespace addresses
 
         public void WriteTFTEmails()
         {
-            _currentOperation.Value = "Writing TFTEmails";
+            _currentOperation.Value = "Writing Email Invitation List";
             var Entries = from myRow in _Data.AsEnumerable()
-                            where (myRow.Field<string>(ColumnName.Organization) != "Project Smile" &&
-                                   !myRow.Field<string>(ColumnName.ControlNumber).Contains("S"))
+                            where ( !string.IsNullOrEmpty(myRow.Field<string>(ColumnName.Email)) )
                             orderby myRow.Field<string>(ColumnName.ContactLast)
                             select myRow;
 
-            WriteCSV("TFTEmails.csv", Entries, false);
+            WriteCSV("EmailList.csv", Entries, false);
         }
 
         public void WriteProjectSmileInvitations()
         {
-            _currentOperation.Value = "Writing Project Smile Invitations";
+            _currentOperation.Value = "Writing Printed Invitations List";
             var PSEntries = from myRow in _Data.AsEnumerable()
-                                 where (myRow.Field<string>(ColumnName.Organization) == "Project Smile" &&
-                                   !myRow.Field<string>(ColumnName.ControlNumber).Contains("S"))
+                                 where ( string.IsNullOrEmpty(myRow.Field<string>(ColumnName.Email)) )
                                  orderby myRow.Field<string>(ColumnName.ContactLast)
                                  select myRow;
 
-            WriteCSV("PSInvitations.csv", PSEntries, false);
-        }
-
-        public void WriteProjectNoShows()
-        {
-            _currentOperation.Value = "Writing Project Smile No Shows";
-            var PSEntries = from myRow in _Data.AsEnumerable()
-                            where (myRow.Field<string>(ColumnName.Organization) == "Project Smile" &&
-                              !myRow.Field<string>(ColumnName.ControlNumber).Contains("S") &&
-                              myRow.Field<string>(ColumnName.pDup) == "N")
-                            orderby myRow.Field<string>(ColumnName.ContactLast)
-                            select myRow;
-
-            WriteCSV("PSNoShows.csv", PSEntries, false);
+            WriteCSV("PrintedInvitationsList.csv", PSEntries, false);
         }
 
         private string Pretty(string txt)
@@ -1094,7 +1101,7 @@ namespace addresses
         //    }
         //    swOut.Close();
         //}
-        #endregion
+        #endregion@
         public void WriteCSV(string filename, OrderedEnumerableRowCollection<DataRow> data, bool bAppend)
         {
             StreamWriter swOut = new StreamWriter(_OutputDir + '/' + filename, bAppend);
