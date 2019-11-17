@@ -10,20 +10,25 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using addresses;
-using CDC.Utilities;
+using Asteria.Utilities;
+using Asteria.Forms;
+using Asteria.Logging;
+using static Asteria.Logging.AsteriaLogger;
 
 namespace TFT
 {
     public partial class Form1 : Form
     {
         Observable<bool> _bGridChanged = Observable<bool>.Get("GridChange");
-        ObservableString _currentOperation = ObservableString.Get("CurrentOperation");
         Database DB;
         System.Timers.Timer sw = new System.Timers.Timer();
        
         public Form1()
         {
             InitializeComponent();
+
+            Log.Add(new ListBoxLogger(listBox1));
+
             sw.AutoReset = false;
             sw.Interval = 1500;
             sw.Elapsed += Sw_Elapsed;
@@ -31,17 +36,7 @@ namespace TFT
             DB = new Database();
             sw.Start();
 
-            rtbProgress.Multiline = true;
-            _currentOperation.PropertyChanged += _currentOperation_PropertyChanged;
             _bGridChanged.PropertyChanged += _bGridChanged_PropertyChanged;
-        }
-
-        private void _currentOperation_PropertyChanged(object sender, PropertyChangedEventArgs e)
-        {
-            rtbProgress.Text += _currentOperation.Value + Environment.NewLine;
-            rtbProgress.SelectionStart = rtbProgress.Text.Length;
-            rtbProgress.ScrollToCaret();
-            rtbProgress.Update();
         }
 
         private void _bGridChanged_PropertyChanged(object sender, PropertyChangedEventArgs e)
@@ -68,8 +63,6 @@ namespace TFT
         {
             Application.Exit();
         }
-
-        AddressParser ap = new addresses.AddressParser();
 
         private void DataGridView1_CellValueChanged(object sender, DataGridViewCellEventArgs e)
         {

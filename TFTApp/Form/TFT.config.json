@@ -1,35 +1,47 @@
 {
-  "Value": null,
   "Settings": {
     "Data": {
-      "Value": null,
+      "Val": null,
       "Settings": {
         "InputDir": {
-          "Value": "D:/Documents/Dropbox/Documents/2018/ECSL/Santa/Input",
+          "Val": "N:/TFTGit",
           "Settings": {}
         },
         "OutputDir": {
-          "Value": "Data",
+          "Val": "Data",
           "Settings": {}
         },
         "TFTFilename": {
-          "Value": "dashboard-family-requests-form-export - no comment.csv",
+          "Val": "dashboard-family-requests-form-export 2019.csv",
           "Settings": {}
         },
         "PSFilename": {
-          "Value": "Project SMILE Export 2018 - Narrowed.csv",
+          "Val": "PS2019.csv",
           "Settings": {}
         },
         "SpecialFilename": {
-          "Value": "Special.csv",
+          "Val": "Special.csv",
           "Settings": {}
         },
         "NoShowFilename": {
-          "Value": "2017-NoShows.csv",
+          "Val": "",
+          "Settings": {
+            "1": {
+              "Val": "2017-NoShows.csv",
+              "Settings": {}
+            },
+            "2": {
+              "Val": "2018-NoShows.csv",
+              "Settings": {}
+            }
+          }
+        },
+        "NoShowRaw": {
+          "Val": "",
           "Settings": {}
         },
         "BannedFilename": {
-          "Value": "Banned.csv",
+          "Val": "Banned.csv",
           "Settings": {}
         }
       }

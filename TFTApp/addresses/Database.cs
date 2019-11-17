@@ -5,16 +5,16 @@ using System.Data;
 using System.Linq;
 using System.Collections.Generic;
 using System.Text;
-using CDC.Utilities;
-using CDC.Logging;
-using CDC.Configuration;
+using Asteria.Utilities;
+using Asteria.Configuration;
+using Asteria.Logging;
+using static Asteria.Logging.AsteriaLogger;
 
 namespace addresses
 {
     public class Database
     {
         public DataTable _Data { get; } = new DataTable();
-        public ILogger _log = new Logger();
 
         private DataTable _rawTFTData;
         private DataTable _rawPSData;
@@ -24,36 +24,44 @@ namespace addresses
 
         ObservableString _currentOperation = ObservableString.Get("CurrentOperation");
         private string _OutputDir, _InputDir;
-        private string _TFT_Filename, _PS_Filename, _Special_Filename, _NoShow_Filename, _Banned_Filename;
+        private string _TFT_Filename, _PS_Filename, _Special_Filename, _Banned_Filename, _NoShowRaw_Filename;
+        private List<string> _NoShow_Filenames;
 
-        HashSet<string> _NoShowPhones, _NoShowEmails, _BannedPhones, _BannedEmails;
+        Dictionary<string, int> _NoShowPhones, _NoShowEmails;
+        HashSet<string> _BannedPhones, _BannedEmails;
+        List<int> _NoShowRawList;
 
         public Database()
         {
             AppConfiguration.AppConfig.TryGetSetting("Data.InputDir", out Setting indir);
-            _InputDir = indir.Value;
+            _InputDir = indir.Val;
 
             if (!Directory.Exists(_InputDir))
                 throw new Exception("Input directory not found.");
 
             AppConfiguration.AppConfig.TryGetSetting("Data.OutputDir", out Setting outdir);
-            _OutputDir = outdir.Value;
+            _OutputDir = outdir.Val;
             Directory.CreateDirectory(_OutputDir);
 
             AppConfiguration.AppConfig.TryGetSetting("Data.TFTFilename", out Setting tftname);
-            _TFT_Filename = tftname.Value;
+            _TFT_Filename = tftname.Val;
 
             AppConfiguration.AppConfig.TryGetSetting("Data.PSFilename", out Setting psname);
-            _PS_Filename = psname.Value;
+            _PS_Filename = psname.Val;
 
             AppConfiguration.AppConfig.TryGetSetting("Data.SpecialFilename", out Setting specialname);
-            _Special_Filename = specialname.Value;
+            _Special_Filename = specialname.Val;
 
             AppConfiguration.AppConfig.TryGetSetting("Data.NoShowFilename", out Setting noShowName);
-            _NoShow_Filename = noShowName.Value;
+            _NoShow_Filenames = new List<string>();
+            foreach (var s in noShowName.Settings)
+                _NoShow_Filenames.Add(s.Value.Val);
 
             AppConfiguration.AppConfig.TryGetSetting("Data.BannedFilename", out Setting BannedName);
-            _Banned_Filename = BannedName.Value;            
+            _Banned_Filename = BannedName.Val;
+
+            AppConfiguration.AppConfig.TryGetSetting("Data.NoShowRaw", out Setting NoShowRaw);
+            _NoShowRaw_Filename = NoShowRaw.Val;
 
             Clear();
         }
@@ -62,9 +70,10 @@ namespace addresses
         {
             try
             {
-                _currentOperation.Value = "Initializing Database";
+                Log.Write(LogLevel.Info, "Initializing Database");
 
                 ReadNoShows();
+
                 ReadBanned();
 
                 ReadTFTRawData();
@@ -84,31 +93,92 @@ namespace addresses
                 WriteProjectSmileInvitations();
                 WriteTFTEmails();
 
+                ProcessNoShowsRaw();
+
                 CheckDuplicates();
-               
+
                 ComputeNoShows();
             }
-            catch(Exception e)
+            catch (Exception e)
             {
-                _log.Fatal(e, "Exception while creating database.");
+                Log.WriteException(LogLevel.Fatal, e, "Exception while creating database.");
+                return;
             }
+        }
+
+        bool ProcessNoShowsRaw()
+        {
+            Log.Write(LogLevel.Info, "Processing NoShowsRaw");
+
+            _NoShowRawList = new List<int>();
+
+            try
+            {
+                int lineNumber = 0;
+                string filename = _InputDir + "/" + _NoShowRaw_Filename;
+                if (!File.Exists(filename))
+                {
+                    Log.Write(LogLevel.Warn, "NoShowsRaw: '" + _NoShowRaw_Filename + "' not found in '" + _InputDir + "' - Skipping");
+                    return false;
+                }
+
+                using (var fs = new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                using (var sr = new StreamReader(fs, Encoding.Default))
+                {
+                    String line;
+                    while (sr.Peek() > 0)
+                    {
+                        line = sr.ReadLine();
+                        if (string.IsNullOrEmpty(line)) break;
+
+                        lineNumber++;
+                        _NoShowRawList.Add(Int32.Parse(line));
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                Log.WriteException(LogLevel.Fatal, e, "Exception encountered while processing NoShowsRaw");
+                return false;
+            }
+
+            if (_NoShowRawList.Count == 0)
+                return false;
+
+            List<string> output = new List<string>();
+            output.Add("CONTACT LAST,CONTACT FIRST,PHONE,EMAIL");
+
+            foreach (var id in _NoShowRawList)
+            {
+                DataRow row = _Data.Rows.Find(id);
+                if (row != null)
+                {
+                    output.Add($"{row[ColumnName.ContactLast]},{row[ColumnName.ContactFirst]},{row[ColumnName.Phone]},{row[ColumnName.Email]}");
+                }
+            }
+
+            File.WriteAllLines(_InputDir + "/ProcessedNoShows.csv", output);
+
+            Log.Write(LogLevel.Info, "Processing NoShowRaw DB - Done");
+
+            return true;
         }
 
         public void Penalize(DataRow r1)
         {
-            bool NS = false;
-            if (_NoShowPhones.Contains((string)r1[ColumnName.Phone]))
-                NS = true;
+            int NS = 0;
+            if (_NoShowPhones.Keys.Contains((string)r1[ColumnName.Phone]))
+                NS = _NoShowPhones[(string)r1[ColumnName.Phone]]; // get the penalized value
             if (!(r1[ColumnName.Email] is System.DBNull) &&
-                 _NoShowEmails.Contains((string)r1[ColumnName.Email]))
-                NS = true;
+                 _NoShowEmails.Keys.Contains((string)r1[ColumnName.Email]))
+                NS = _NoShowEmails[(string)r1[ColumnName.Email]];
 
-            if (NS)
+            if (NS > 0)
             {
                 if (r1[ColumnName.Penalty] is System.DBNull)
-                    r1[ColumnName.Penalty] = 1;
+                    r1[ColumnName.Penalty] = NS;
                 else
-                    r1[ColumnName.Penalty] = 1+(int)r1[ColumnName.Penalty];                   
+                    r1[ColumnName.Penalty] = NS + (int)r1[ColumnName.Penalty];
             }
 
             if (_BannedPhones.Contains((string)r1[ColumnName.Phone]))
@@ -120,7 +190,7 @@ namespace addresses
 
         private bool ReadBanned()
         {
-            _currentOperation.Value = "Reading Banned";
+            Log.Write(LogLevel.Info, "Reading Banned");
             var raw = _rawBanned = new DataTable();
             try
             {
@@ -128,8 +198,7 @@ namespace addresses
                 string filename = _InputDir + "/" + _Banned_Filename;
                 if (!File.Exists(filename))
                 {
-                    _log.Warning("Banned DB: '" + _Banned_Filename + "' not found in '" + _InputDir + "' - Skipping");
-                    _currentOperation.Value = "Banned DB: '" + _Banned_Filename + "' not found in '" + _InputDir + "' - Skipping";
+                    Log.Write(LogLevel.Warn, "Banned DB: '" + _Banned_Filename + "' not found in '" + _InputDir + "' - Skipping");
                     return false;
                 }
 
@@ -154,7 +223,7 @@ namespace addresses
 
                         if (tagInfo.Length != header.Length)
                         {
-                            _log.Warning("Line " + lineNumber + " - Length wrong: " + line);
+                            Log.Write(LogLevel.Warn, "Line " + lineNumber + " - Length wrong: " + line);
                             go = false;
                         }
                         else
@@ -176,7 +245,7 @@ namespace addresses
             }
             catch (Exception e)
             {
-                _log.Warning(e, _currentOperation.Value = "Reading Banned DB - Failed");
+                Log.WriteException(LogLevel.Warn, e, "Reading Banned DB - Failed");
                 return false;
             }
 
@@ -192,95 +261,120 @@ namespace addresses
                     _BannedEmails.Add((string)r[ColumnName.Email]);
             }
 
-            _currentOperation.Value = "Reading Banned DB - Done";
+            Log.Write(LogLevel.Info, "Reading Banned DB - Done");
             return true;
         }
 
         private bool ReadNoShows()
         {
-            _currentOperation.Value = "Reading NoShows";
+            Log.Write(LogLevel.Info, "Reading NoShows");
             var raw = _rawNoShows = new DataTable();
-            try
+            int index = 0;
+            foreach (var fn in _NoShow_Filenames)
             {
-                int lineNumber = 0;
-                string filename = _InputDir + "/" + _NoShow_Filename;
-                if (!File.Exists(filename))
+                try
                 {
-                    _log.Warning("NoShows DB: '" + _NoShow_Filename + "' not found in '" + _InputDir + "' - Skipping");
-                    _currentOperation.Value = "NoShow DB: '" + _NoShow_Filename + "' not found in '" + _InputDir + "' - Skipping";
+                    int lineNumber = 0;
+                    string filename = _InputDir + "/" + fn;
+                    if (!File.Exists(filename))
+                    {
+                        Log.Write(LogLevel.Warn, "NoShows DB: '" + fn + "' not found in '" + _InputDir + "' - Skipping");
+                        continue;
+                    }
+
+                    HashSet<string> _uniqueLines = new HashSet<string>();
+
+                    using (var fs = new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                    using (var sr = new StreamReader(fs, Encoding.Default))
+                    {
+                        String line = sr.ReadLine();
+                        lineNumber++;
+                        String[] header = SplitCSV(line);
+                        if (raw.Columns.Count == 0)
+                        {
+                            for (int i = 0; i < header.Length; i++)
+                            {
+                                string columnName = header[i] = header[i].Trim(new char[] { '"', '\\', ',' });
+                                raw.Columns.Add(columnName);
+                            }
+                            raw.Columns.Add(ColumnName.ControlNumber);
+                            raw.Columns.Add(ColumnName.Phone2);
+                            raw.PrimaryKey = new DataColumn[1] { raw.Columns[ColumnName.ControlNumber] };
+                        }
+
+                        bool go = true;
+                        string prevPhone = string.Empty;
+                        do
+                        {
+                            line = sr.ReadLine();
+                            if (!_uniqueLines.Add(line)) continue;
+
+                            string[] tagInfo = SplitCSV(line);
+
+                            if (tagInfo.Length != header.Length)
+                            {
+                                Log.Write(LogLevel.Warn, "Line " + lineNumber + " - Length wrong: " + line);
+                                go = false;
+                            }
+                            else
+                            {
+                                DataRow row = raw.NewRow();
+                                for (int ii = 0; ii < header.Length; ii++)
+                                {
+                                    string tag = tagInfo[ii].Trim(new char[] { '"', '\\', ',' });
+                                    row[header[ii]] = Pretty(tag);
+                                }
+
+                                if (string.Compare(prevPhone, (string)row[ColumnName.Phone]) != 0)
+                                {
+                                    row[ColumnName.ControlNumber] = index.ToString();
+                                    index++;
+                                    CorrectPhone(row);
+                                    raw.Rows.Add(row);
+                                    prevPhone = (string)row[ColumnName.Phone];
+                                }
+                            }
+                            if (sr.EndOfStream)
+                                go = false;
+                        } while (go);
+                    }
+                }
+                catch (Exception e)
+                {
+                    Log.WriteException(LogLevel.Warn, e, "Reading NoShow DB - Failed");
                     return false;
                 }
 
-                using (var fs = new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
-                using (var sr = new StreamReader(fs, Encoding.Default))
+                // construct the data to search
+                _NoShowPhones = new Dictionary<string, int>();
+                foreach (DataRow r in _rawNoShows.Rows)
                 {
-                    String line = sr.ReadLine();
-                    lineNumber++;
-                    String[] header = SplitCSV(line);
-                    for (int i = 0; i < header.Length; i++)
-                    {
-                        string columnName = header[i] = header[i].Trim(new char[] { '"', '\\', ',' });
-                        raw.Columns.Add(columnName);
-                    }
-                    raw.Columns.Add(ColumnName.ControlNumber);
-                    raw.Columns.Add(ColumnName.Phone2);
-                    raw.PrimaryKey = new DataColumn[1] { raw.Columns[ColumnName.ControlNumber] };
+                    string key = (string)r[ColumnName.Phone];
+                    if (string.IsNullOrEmpty(key)) continue;
 
-                    bool go = true;
-                    int index = 0;
-                    string prevPhone = string.Empty;
-                    do
-                    {
-                        line = sr.ReadLine();
-                        string[] tagInfo = SplitCSV(line);
+                    if (_NoShowPhones.ContainsKey(key))
+                        _NoShowPhones[key]++;
+                    else
+                        _NoShowPhones.Add(key, 1);
+                }
 
-                        if (tagInfo.Length != header.Length)
-                        {
-                            _log.Warning("Line " + lineNumber + " - Length wrong: " + line);
-                            go = false;
-                        }
+                _NoShowEmails = new Dictionary<string, int>();
+                foreach (DataRow r in _rawNoShows.Rows)
+                {
+                    if (!(r[ColumnName.Email] is System.DBNull))
+                    {
+                        string key = (string)r[ColumnName.Email];
+                        if (string.IsNullOrEmpty(key)) continue;
+
+                        if (_NoShowEmails.ContainsKey(key))
+                            _NoShowEmails[key] += 10;
                         else
-                        {
-                            DataRow row = raw.NewRow();
-                            for (int ii = 0; ii < header.Length; ii++)
-                            {
-                                string tag = tagInfo[ii].Trim(new char[] { '"', '\\', ',' });
-                                row[header[ii]] = Pretty(tag);
-                            }
-
-                            if (string.Compare(prevPhone, (string)row[ColumnName.Phone]) != 0)
-                            {
-                                row[ColumnName.ControlNumber] = index.ToString();
-                                index++;
-                                CorrectPhone(row);
-                                raw.Rows.Add(row);
-                                prevPhone = (string)row[ColumnName.Phone];
-                            }
-                        }
-                        if (sr.EndOfStream)
-                        go = false;
-                    } while (go);
+                            _NoShowEmails.Add(key, 10);
+                    }
                 }
             }
-            catch (Exception e)
-            {
-                _log.Warning(e, _currentOperation.Value = "Reading NoShow DB - Failed");
-                return false;
-            }
 
-            // construct the data to search
-            _NoShowPhones = new HashSet<string>();
-            foreach (DataRow r in _rawNoShows.Rows)
-                _NoShowPhones.Add((string)r[ColumnName.Phone]);
-
-            _NoShowEmails = new HashSet<string>();
-            foreach (DataRow r in _rawNoShows.Rows)
-            {
-                if (!(r[ColumnName.Email] is System.DBNull))
-                    _NoShowEmails.Add((string)r[ColumnName.Email]);
-            }
-
-            _currentOperation.Value = "Reading NoShow DB - Done";
+            Log.Write(LogLevel.Info, "Reading NoShow DB - Done");
             return true;
         }
 
@@ -310,13 +404,13 @@ namespace addresses
                         DataRow row = _Data.Rows.Find(cn);
                         if (row == null)
                         {
-                            _log.Warning("cn = '" + cn + "' - Does not exist.");
+                            Log.Write(LogLevel.Warn, "cn = '" + cn + "' - Does not exist.");
                             continue;
                         }
                         row[ColumnName.pDup] = "N";
                         int kids = int.Parse((string)row[ColumnName.Total]);
                         totalKidsNoShow += kids;
-                        if (String.Compare("Project Smile",(string)row[ColumnName.Organization]) == 0)
+                        if (String.Compare("Project Smile", (string)row[ColumnName.Organization]) == 0)
                         {
                             totalKidsNoShowPS += kids;
                             totalRegNoShowPS++;
@@ -340,25 +434,22 @@ namespace addresses
             sw.WriteLine("Total NoShow PS," + totalRegNoShowPS + "," + 100f * totalRegNoShowPS / _totalRegPS + "%\n");
             sw.WriteLine("Total NoShow TFT," + totalRegNoShowTFT + "," + 100f * totalRegNoShowTFT / _totalRegTFT + "%\n");
             sw.Close();
-
-            WriteProjectNoShows();
         }
 
         private void Clear()
         {
-            _log.Info("Initializaing Database");
-            _currentOperation.Value = "Clearing Database";
+            Log.Write(LogLevel.Info, "Initializing Database");
             _Data.Clear();
             foreach (var colName in ColumnName.Array)
                 _Data.Columns.Add(colName);
 
             _Data.PrimaryKey = new DataColumn[1] { _Data.Columns[ColumnName.ControlNumber] };
         }
-        
+
         static Regex csvSplit = new Regex("(?:^|,)(\"(?:[^\"]+|\"\")*\"|[^,]*)", RegexOptions.Compiled);
 
         public static string[] SplitCSV(string input)
-        {            
+        {
             List<string> list = new List<string>();
             string curr = null;
             foreach (Match match in csvSplit.Matches(input))
@@ -375,16 +466,15 @@ namespace addresses
 
         private bool ReadSpecialRawData()
         {
-            _currentOperation.Value = "Reading Special DB";
+            Log.Write(LogLevel.Info, "Reading Special DB");
             var raw = _rawSpecialData = new DataTable();
             try
             {
                 int lineNumber = 0;
                 string filename = _InputDir + "/" + _Special_Filename;
-                if( !File.Exists(filename))
+                if (!File.Exists(filename))
                 {
-                    _log.Warning("Special DB: '" + _Special_Filename + "' not found in '" + _InputDir + "' - Skipping");
-                    _currentOperation.Value = "Special DB: '" + _Special_Filename + "' not found in '" + _InputDir + "' - Skipping";
+                    Log.Write(LogLevel.Warn, "Special DB: '" + _Special_Filename + "' not found in '" + _InputDir + "' - Skipping");
                     return false;
                 }
 
@@ -399,7 +489,6 @@ namespace addresses
                         string columnName = header[i] = header[i].Trim(new char[] { '"', '\\', ',' });
                         raw.Columns.Add(columnName);
                     }
-                    raw.Columns.Add(ColumnName.Organization);
                     raw.Columns.Add(ColumnName.Total);
                     raw.Columns.Add(ColumnName.Status);
                     raw.Columns.Add(ColumnName.Penalty);
@@ -413,7 +502,7 @@ namespace addresses
 
                         if (tagInfo.Length != header.Length)
                         {
-                            _log.Warning("Line " + lineNumber + " - Length wrong: " + line);
+                            Log.Write(LogLevel.Warn, "Line " + lineNumber + " - Length wrong: " + line);
                             go = false;
                         }
                         else
@@ -425,8 +514,8 @@ namespace addresses
                                 row[header[ii]] = Pretty(tag);
                             }
                             row[ColumnName.State] = "Texas";
-                            row[ColumnName.Organization] = "ECSL";
-                            row[ColumnName.Status] = "Pending";
+                            //row[ColumnName.Organization] = "ECSL";
+                            row[ColumnName.Status] = "Special";
                             int total = 0;
                             if (!string.IsNullOrEmpty((string)row[ColumnName.ChildAge1])) total++;
                             if (!string.IsNullOrEmpty((string)row[ColumnName.ChildAge2])) total++;
@@ -450,17 +539,16 @@ namespace addresses
             }
             catch (Exception e)
             {
-                _log.Warning(e, "Reading Special DB - Failed");
-                _currentOperation.Value = "Reading Special DB - Failed";
+                Log.WriteException(LogLevel.Warn, e, "Reading Special DB - Failed");
                 return false;
             }
-            _currentOperation.Value = "Reading Special DB - Done";
+            Log.Write(LogLevel.Info, "Reading Special DB - Done");
             return true;
         }
 
         private bool ReadTFTRawData()
         {
-            _currentOperation.Value = "Reading Toys-for-Tots Input";
+            Log.Write(LogLevel.Info, "Reading Toys-for-Tots Input");
             _rawTFTData = new DataTable();
             int lineNumber = 0;
             try
@@ -468,7 +556,7 @@ namespace addresses
                 string filename = _InputDir + "/" + _TFT_Filename;
                 if (!File.Exists(filename))
                 {
-                    _log.Warning("TFT DB: '" + _TFT_Filename + "' not found in '" + _InputDir + "' - Skipping");
+                    Log.Write(LogLevel.Warn, "TFT DB: '" + _TFT_Filename + "' not found in '" + _InputDir + "' - Skipping");
                     return false;
                 }
 
@@ -481,7 +569,7 @@ namespace addresses
                     String[] header = SplitCSV(line);
                     for (int i = 0; i < header.Length; i++)
                     {
-                        string columnName = header[i] = header[i].Trim(new char[] { '"', '\\', ',' });
+                        string columnName = header[i] = header[i].Trim(new char[] { '"', '\\', ',', ' ' });
                         _rawTFTData.Columns.Add(columnName);
                     }
                     _rawTFTData.Columns.Add(ColumnName.Organization);
@@ -501,7 +589,7 @@ namespace addresses
 
                         if (tagInfo.Length != header.Length)
                         {
-                            _log.Warning("Line " + lineNumber + " - Length wrong: " + line);
+                            Log.Write(LogLevel.Warn, "Line " + lineNumber + " - Length wrong: " + line);
                             go = false;
                         }
                         else
@@ -512,7 +600,8 @@ namespace addresses
                                 string tag = tagInfo[ii].Trim(new char[] { '"', '\\', ',' });
                                 row[header[ii]] = Pretty(tag);
                             }
-                            if ((string)row[ColumnName.Status] == "Pending")
+                            if (string.Compare("pending", (string)row[ColumnName.Status], true) == 0 ||
+                                string.Compare("verify", (string)row[ColumnName.Status], true) == 0)
                             {
                                 row[ColumnName.State] = "Texas";
                                 row[ColumnName.TimeSlot] = string.Empty;
@@ -542,17 +631,16 @@ namespace addresses
             }
             catch (Exception e)
             {
-                _log.Warning(e, "Reading TFT DB - Failed");
-                _currentOperation.Value = "Reading TFT DB - Failed";
+                Log.WriteException(LogLevel.Warn, e, "Reading TFT DB - Failed");
                 return false;
             }
-            _currentOperation.Value = "Reading Toys-for-Tots Input - Done - " + lineNumber + " successfully parsed.";
-            return true;            
+            Log.Write(LogLevel.Info, "Reading Toys-for-Tots Input - Done - " + lineNumber + " successfully parsed.");
+            return true;
         }
 
         private bool ReadPSRawData()
         {
-            _currentOperation.Value = "Reading ProjectSmile DB";
+            Log.Write(LogLevel.Info, "Reading ProjectSmile DB");
             _rawPSData = new DataTable();
             int lineNumber = 0;
             try
@@ -560,7 +648,7 @@ namespace addresses
                 string filename = _InputDir + "/" + _PS_Filename;
                 if (!File.Exists(filename))
                 {
-                    _log.Warning("Project Smile DB: '" + _PS_Filename + "' not found in '" + _InputDir + "' - Skipping");
+                    Log.Write(LogLevel.Warn, "Project Smile DB: '" + _PS_Filename + "' not found in '" + _InputDir + "' - Skipping");
                     return false;
                 }
 
@@ -661,22 +749,29 @@ namespace addresses
                                 // Check age
                                 if (nAge > 17)
                                 {
-                                    _log.Warning("Project Smile - [" + row[ColumnName.ChildID] + "] " + row[ColumnName.ContactFirst] + " " + row[ColumnName.ContactLast]
+                                    Log.Write(LogLevel.Warn, "Project Smile - [" + row[ColumnName.ControlNumber] + "] " + row[ColumnName.ContactFirst] + " " + row[ColumnName.ContactLast]
                                          + " child '" + (string)row["CHILDNAME"] + "' is above the age limit.");
                                     continue;
                                 }
                             }
+
+                            if (string.Compare("pending", (string)row[ColumnName.Status], true) != 0) continue;
 
                             if (int.Parse((string)row[ColumnName.FamilyID]) > 0)
                             {
                                 if (lastRow != null && string.Compare(lastFamilyID, (string)row[ColumnName.FamilyID]) == 0) // merge into last
                                 {
                                     totalKidsInFamily++;
-                                    lastRow[ColumnName.ChildAge + totalKidsInFamily] = row[ColumnName.ChildAge];
-                                    lastRow[ColumnName.ChildFirst + totalKidsInFamily] = row[ColumnName.ChildFirst];
-                                    lastRow[ColumnName.ChildLast + totalKidsInFamily] = row[ColumnName.ChildLast];
-                                    lastRow[ColumnName.ChildGender + totalKidsInFamily] = row[ColumnName.ChildGender];
-                                    lastRow[ColumnName.Total] = totalKidsInFamily;
+                                    if (totalKidsInFamily > 10)
+                                        Log.Write(LogLevel.Info, $"Project Smile - [{row[ColumnName.FamilyID]}] has {totalKidsInFamily} kids!");
+                                    else
+                                    {
+                                        lastRow[ColumnName.ChildAge + totalKidsInFamily] = row[ColumnName.ChildAge];
+                                        lastRow[ColumnName.ChildFirst + totalKidsInFamily] = row[ColumnName.ChildFirst];
+                                        lastRow[ColumnName.ChildLast + totalKidsInFamily] = row[ColumnName.ChildLast];
+                                        lastRow[ColumnName.ChildGender + totalKidsInFamily] = row[ColumnName.ChildGender];
+                                        lastRow[ColumnName.Total] = totalKidsInFamily;
+                                    }
                                 }
                                 else
                                 {
@@ -703,42 +798,40 @@ namespace addresses
             }
             catch (Exception e)
             {
-                _log.Warning(e, "Reading ProjectSmile DB - Failed");
-                _currentOperation.Value = "Reading ProjectSmile DB - Failed";
+                Log.WriteException(LogLevel.Warn, e, "Reading ProjectSmile DB - Failed");
                 return false;
             }
-            _currentOperation.Value = "Reading ProjectSmile DB - Done - " + lineNumber + " Parsed";
+            Log.Write(LogLevel.Info, "Reading ProjectSmile DB - Done - " + lineNumber + " Parsed");
             return true;
         }
 
         public void WriteSpecial()
         {
-            _currentOperation.Value = "Writing Special";
+            Log.Write(LogLevel.Info, "Writing Special");
             var Entries = from myRow in _Data.AsEnumerable()
-                          where (myRow.Field<string>(ColumnName.ControlNumber).Contains("S"))
-                          orderby myRow.Field<string>(ColumnName.TimeSlot) descending, myRow.Field<string>(ColumnName.ContactLast)
+                          where (myRow.Field<string>(ColumnName.Organization).Contains("Late"))
+                          orderby myRow.Field<string>(ColumnName.ControlNumber) ascending, myRow.Field<string>(ColumnName.ContactLast)
                           select myRow;
 
             int page = 1;
             foreach (var e in Entries)
             {
-                e[ColumnName.BookNumber] = "Special";
+                e[ColumnName.BookNumber] = "Late";
                 e[ColumnName.PageNumber] = page++;
             }
-            WriteCSV("SpecialOut.csv", Entries, false);
+            WriteCSV("LateOut.csv", Entries, false);
         }
 
         public void WriteBook1()
         {
-            _currentOperation.Value = "Writing Book1";
+            Log.Write(LogLevel.Info, "Writing Book1");
             var Entries = from myRow in _Data.AsEnumerable()
-                                where (myRow.Field<string>(ColumnName.ContactLast).CompareTo(_strBreak1End) <= 0 &&
-                                   !myRow.Field<string>(ColumnName.ControlNumber).Contains("S"))
-                                orderby myRow.Field<string>(ColumnName.TimeSlotIndex) ascending, myRow.Field<string>(ColumnName.ContactLast)
-                                select myRow;
+                          where (myRow.Field<string>(ColumnName.ContactLast).CompareTo(_strBreak1End) <= 0)
+                          orderby myRow.Field<string>(ColumnName.TimeSlotIndex) ascending, myRow.Field<string>(ColumnName.ContactLast)
+                          select myRow;
 
-            int page=1;
-            foreach(var e in Entries)
+            int page = 1;
+            foreach (var e in Entries)
             {
                 e[ColumnName.BookNumber] = "1";
                 e[ColumnName.PageNumber] = page++;
@@ -748,11 +841,10 @@ namespace addresses
 
         public void WriteBook2()
         {
-            _currentOperation.Value = "Writing Book2";
+            Log.Write(LogLevel.Info, "Writing Book2");
             var Entries = from myRow in _Data.AsEnumerable()
                           where (myRow.Field<string>(ColumnName.ContactLast).CompareTo(_strBreak2End) <= 0 &&
-                                 myRow.Field<string>(ColumnName.ContactLast).CompareTo(_strBreak2Begin) >= 0 &&
-                                   !myRow.Field<string>(ColumnName.ControlNumber).Contains("S"))
+                                 myRow.Field<string>(ColumnName.ContactLast).CompareTo(_strBreak2Begin) >= 0)
                           orderby myRow.Field<string>(ColumnName.TimeSlotIndex) ascending, myRow.Field<string>(ColumnName.ContactLast)
                           select myRow;
 
@@ -767,11 +859,10 @@ namespace addresses
 
         public void WriteBook3()
         {
-            _currentOperation.Value = "Writing Book3";
+            Log.Write(LogLevel.Info, "Writing Book3");
             var Entries = from myRow in _Data.AsEnumerable()
                           where (myRow.Field<string>(ColumnName.ContactLast).CompareTo(_strBreak3End) <= 0 &&
-                                 myRow.Field<string>(ColumnName.ContactLast).CompareTo(_strBreak3Begin) >= 0 &&
-                                   !myRow.Field<string>(ColumnName.ControlNumber).Contains("S"))
+                                 myRow.Field<string>(ColumnName.ContactLast).CompareTo(_strBreak3Begin) >= 0)
                           orderby myRow.Field<string>(ColumnName.TimeSlotIndex) ascending, myRow.Field<string>(ColumnName.ContactLast)
                           select myRow;
 
@@ -786,10 +877,9 @@ namespace addresses
 
         public void WriteBook4()
         {
-            _currentOperation.Value = "Writing Book4";
+            Log.Write(LogLevel.Info, "Writing Book4");
             var Entries = from myRow in _Data.AsEnumerable()
-                          where (myRow.Field<string>(ColumnName.ContactLast).CompareTo(_strBreak4Begin) >= 0 &&
-                                   !myRow.Field<string>(ColumnName.ControlNumber).Contains("S"))
+                          where (myRow.Field<string>(ColumnName.ContactLast).CompareTo(_strBreak4Begin) >= 0)
                           orderby myRow.Field<string>(ColumnName.TimeSlotIndex) ascending, myRow.Field<string>(ColumnName.ContactLast)
                           select myRow;
 
@@ -804,39 +894,24 @@ namespace addresses
 
         public void WriteTFTEmails()
         {
-            _currentOperation.Value = "Writing TFTEmails";
+            Log.Write(LogLevel.Info, "Writing Email Invitation List");
             var Entries = from myRow in _Data.AsEnumerable()
-                            where (myRow.Field<string>(ColumnName.Organization) != "Project Smile" &&
-                                   !myRow.Field<string>(ColumnName.ControlNumber).Contains("S"))
-                            orderby myRow.Field<string>(ColumnName.ContactLast)
-                            select myRow;
+                          where (!string.IsNullOrEmpty(myRow.Field<string>(ColumnName.Email)))
+                          orderby myRow.Field<string>(ColumnName.ContactLast)
+                          select myRow;
 
-            WriteCSV("TFTEmails.csv", Entries, false);
+            WriteCSV("EmailList.csv", Entries, false);
         }
 
         public void WriteProjectSmileInvitations()
         {
-            _currentOperation.Value = "Writing Project Smile Invitations";
+            Log.Write(LogLevel.Info, "Writing Printed Invitations List");
             var PSEntries = from myRow in _Data.AsEnumerable()
-                                 where (myRow.Field<string>(ColumnName.Organization) == "Project Smile" &&
-                                   !myRow.Field<string>(ColumnName.ControlNumber).Contains("S"))
-                                 orderby myRow.Field<string>(ColumnName.ContactLast)
-                                 select myRow;
-
-            WriteCSV("PSInvitations.csv", PSEntries, false);
-        }
-
-        public void WriteProjectNoShows()
-        {
-            _currentOperation.Value = "Writing Project Smile No Shows";
-            var PSEntries = from myRow in _Data.AsEnumerable()
-                            where (myRow.Field<string>(ColumnName.Organization) == "Project Smile" &&
-                              !myRow.Field<string>(ColumnName.ControlNumber).Contains("S") &&
-                              myRow.Field<string>(ColumnName.pDup) == "N")
+                            where (string.IsNullOrEmpty(myRow.Field<string>(ColumnName.Email)))
                             orderby myRow.Field<string>(ColumnName.ContactLast)
                             select myRow;
 
-            WriteCSV("PSNoShows.csv", PSEntries, false);
+            WriteCSV("PrintedInvitationsList.csv", PSEntries, false);
         }
 
         private string Pretty(string txt)
@@ -863,7 +938,7 @@ namespace addresses
 
         public void Merge()
         {
-            _currentOperation.Value = "Merging";
+            Log.Write(LogLevel.Info, "Merging");
             string[] timeSlot = { "8:00AM-10:00AM", "10:00AM-Noon", "1:00PM-3:00PM", "3:00PM-5:00PM" };
 
             // Merge PS data
@@ -873,7 +948,7 @@ namespace addresses
                 DataRow row = _Data.NewRow();
                 foreach (DataColumn col in _Data.Columns)
                 {
-                    if (_rawPSData.Columns.Contains(col.ColumnName) )
+                    if (_rawPSData.Columns.Contains(col.ColumnName))
                         row[col.ColumnName] = rawRow[col.ColumnName];
                 }
                 GenerateRegistrationData(row);
@@ -892,12 +967,12 @@ namespace addresses
                     row[ColumnName.TimeSlot] = timeSlot[3];
                 }
 
-                 _Data.Rows.Add(row);
+                _Data.Rows.Add(row);
             }
 
             // Merge TFT data
             index = 0;
-            int totalRows = _rawTFTData.Rows.Count+1;
+            int totalRows = _rawTFTData.Rows.Count + 1;
             foreach (DataRow rawRow in _rawTFTData.Rows)
             {
                 DataRow row = _Data.NewRow();
@@ -905,7 +980,7 @@ namespace addresses
                 {
                     if (_rawTFTData.Columns.Contains(col.ColumnName))
                         row[col.ColumnName] = rawRow[col.ColumnName];
-                    
+
                 }
                 GenerateRegistrationData(row);
                 CorrectPhone(row);
@@ -949,13 +1024,13 @@ namespace addresses
                 _Data.Rows.Add(row);
             }
 
-            _currentOperation.Value = "Merging - Done";
+            Log.Write(LogLevel.Info, "Merging - Done");
         }
 
         private void CorrectPhone(DataRow row)
         {
             string phoneString(string input)
-            {                
+            {
                 var result = Regex.Replace(input, @"\D", "");
                 if (result.Length == 10)
                     return result.Substring(0, 3) + '-' +
@@ -965,7 +1040,7 @@ namespace addresses
             }
 
             row[ColumnName.Phone] = phoneString((string)row[ColumnName.Phone]);
-            if( row.Table.Columns.Contains(ColumnName.Phone2) &&
+            if (row.Table.Columns.Contains(ColumnName.Phone2) &&
                 !(row[ColumnName.Phone2] is System.DBNull))
                 row[ColumnName.Phone2] = phoneString((string)row[ColumnName.Phone2]);
         }
@@ -994,7 +1069,7 @@ namespace addresses
                     if (age == 17)
                         prefix = ".        .        .       GftCrd   ";
 
-                    r["R" + (i-1).ToString()] = prefix + age + ": " + firstName;
+                    r["R" + (i - 1).ToString()] = prefix + age + ": " + firstName;
                     bool bFirst = string.IsNullOrEmpty(((string)r[ColumnName.Kids]));
                     r[ColumnName.Kids] = r[ColumnName.Kids] + (bFirst ? "" : ", ") + firstName;
                 }
@@ -1164,7 +1239,7 @@ namespace addresses
             int CountKids(DataRow e, Gender gender, int ageBegin, int ageEnd)
             {
                 int count = 0;
-                for(int i=1; i<=10; i++)
+                for (int i = 1; i <= 10; i++)
                 {
                     string colNameAge = "ChildAge" + i;
                     string colNameGender = "ChildGender" + i;
@@ -1185,13 +1260,13 @@ namespace addresses
                         }
                     }
                 }
-                return count;                
+                return count;
             }
 
-            _currentOperation.Value = "Computing BreakOut";
+            Log.Write(LogLevel.Info, "Computing BreakOut");
             var entries = from myRow in _Data.AsEnumerable()
-                                  orderby myRow.Field<string>(ColumnName.ContactLast)
-                                  select myRow;
+                          orderby myRow.Field<string>(ColumnName.ContactLast)
+                          select myRow;
             // Compute Totals
             _totalKids = 0;
             _totalBoys_0_2 = 0;
@@ -1243,11 +1318,11 @@ namespace addresses
             sw.WriteLine("Total Accepted PS," + _totalRegPS);
             sw.WriteLine("Total Accepted TFT," + _totalRegTFT);
             _currentOperation.Value =
-                "Gender\t0-2\t3-6\t7-11\t12-16\t17" + Environment.NewLine +
-                "Boys\t" + _totalBoys_0_2 + '\t' + _totalBoys_3_6 + '\t' + _totalBoys_7_11 + '\t' + _totalBoys_12_16 + '\t' + _totalBoys_17 + Environment.NewLine +
-                "Girls\t" + _totalGirls_0_2 + '\t' + _totalGirls_3_6 + '\t' + _totalGirls_7_11 + '\t' + _totalGirls_12_16 + '\t' + _totalGirls_17 + Environment.NewLine +
-                "Total\t" + (_totalGirls_0_2 + _totalBoys_0_2) + '\t' + (_totalGirls_3_6 + _totalBoys_3_6) + '\t' + (_totalGirls_7_11 + _totalBoys_7_11) + '\t' +
-                            (_totalGirls_12_16 + _totalBoys_12_16) + '\t' + (_totalGirls_17 + _totalBoys_17);
+                "Gender,'0-2,'3-6,'7-11,'12-16,'17" + Environment.NewLine +
+                "Boys," + _totalBoys_0_2 + ',' + _totalBoys_3_6 + ',' + _totalBoys_7_11 + ',' + _totalBoys_12_16 + ',' + _totalBoys_17 + Environment.NewLine +
+                "Girls," + _totalGirls_0_2 + ',' + _totalGirls_3_6 + ',' + _totalGirls_7_11 + ',' + _totalGirls_12_16 + ',' + _totalGirls_17 + Environment.NewLine +
+                "Total," + (_totalGirls_0_2 + _totalBoys_0_2) + ',' + (_totalGirls_3_6 + _totalBoys_3_6) + ',' + (_totalGirls_7_11 + _totalBoys_7_11) + ',' +
+                            (_totalGirls_12_16 + _totalBoys_12_16) + ',' + (_totalGirls_17 + _totalBoys_17);
 
             sw.WriteLine(_currentOperation.Value);
             sw.WriteLine("Total Kids," + _totalKids);
@@ -1315,19 +1390,19 @@ namespace addresses
                         sb.Append("     " + "A - " + _strBreak1End + Environment.NewLine);
                         sb.Append("     " + _strBreak2Begin + " - " + _strBreak2End + Environment.NewLine);
                         sb.Append("     " + _strBreak3Begin + " - " + _strBreak3End + Environment.NewLine);
-                        sb.Append("     " + _strBreak4Begin + " - Zzz");                        
+                        sb.Append("     " + _strBreak4Begin + " - Zzz");
 
                         Directory.CreateDirectory(_OutputDir);
                         StreamWriter swOut = new StreamWriter(_OutputDir + "/Breakout.txt");
                         swOut.WriteLine(sb.ToString());
                         swOut.Close();
-                        _currentOperation.Value = sb.ToString();
+                        Log.Write(LogLevel.Info, sb.ToString());
                         System.Threading.Thread.Sleep(250);
-                        _currentOperation.Value = "Computing BreakOut - Done";
+                        Log.Write(LogLevel.Info, "Computing BreakOut - Done");
                         System.Threading.Thread.Sleep(250);
                         return;
                 }
-            }            
+            }
         }
 
         public void CheckDuplicates()
@@ -1336,17 +1411,17 @@ namespace addresses
             CheckForDuplicatePhones();
         }
 
-       
+
 
         private Dictionary<string, Dictionary<string, string>> dictControlNumberProperties = new Dictionary<string, Dictionary<string, string>>();
         private void CheckForDuplicatePhones()
         {
-            _currentOperation.Value = "Checking for Similar Entries";
+            Log.Write(LogLevel.Info, "Checking for Similar Entries");
             System.Threading.Thread.Sleep(100);
             string FirstNumberInString(string s)
             {
                 string numString = string.Empty;
-                foreach(char c in s)
+                foreach (char c in s)
                 {
                     if (char.IsNumber(c))
                         numString += c;
@@ -1358,7 +1433,7 @@ namespace addresses
             string StringAfterNumber(string s)
             {
                 int index = 0;
-                foreach(char c in s)
+                foreach (char c in s)
                 {
                     if (char.IsNumber(c))
                         index++;
@@ -1369,7 +1444,7 @@ namespace addresses
 
             int currentProgress = -1;
             int progress = 0;
-            _currentOperation.Value = "Checking for Similar Children";
+            Log.Write(LogLevel.Info, "Checking for Similar Children");
 
             // construct the data to search
             foreach (DataRow r1 in this._Data.Rows)
@@ -1378,7 +1453,7 @@ namespace addresses
                 if (currentProgress != (int)((double)progress / (double)_Data.Rows.Count * 10f))
                 {
                     currentProgress = (int)((double)progress / (double)_Data.Rows.Count * 10f);
-                    _currentOperation.Value = currentProgress.ToString();
+                    Log.Write(LogLevel.Info, currentProgress.ToString());
                     System.Threading.Thread.Sleep(100);
                 }
                 string cn = (string)r1[ColumnName.ControlNumber];
@@ -1408,18 +1483,18 @@ namespace addresses
                 if (currentProgress != (int)((double)progress / (double)dictControlNumberToChildrenIndex.Count * 10f))
                 {
                     currentProgress = (int)((double)progress / (double)dictControlNumberToChildrenIndex.Count * 10f);
-                    _currentOperation.Value = currentProgress.ToString();
+                    Log.Write(LogLevel.Info, currentProgress.ToString());
                 }
                 int t1 = int.Parse(tuple1.Key);
                 foreach (var tuple2 in dictControlNumberProperties)
                 {
                     int t2 = int.Parse(tuple2.Key);
-                    if (t1 >= t2) continue;                    
+                    if (t1 >= t2) continue;
 
-                    if( tuple1.Value["streetNum"].Length > 0 && tuple1.Value["streetNum"] == tuple2.Value["streetNum"] &&
+                    if (tuple1.Value["streetNum"].Length > 0 && tuple1.Value["streetNum"] == tuple2.Value["streetNum"] &&
                         tuple1.Value["streetName"].Length > 5 && tuple1.Value["streetName"] == tuple2.Value["streetName"] ||
                         tuple1.Value["phone"].Length > 5 && tuple1.Value["phone"] == tuple2.Value["phone"] ||
-                        tuple1.Value["email"].Length > 5 && tuple1.Value["email"] == tuple2.Value["email"] )
+                        tuple1.Value["email"].Length > 5 && tuple1.Value["email"] == tuple2.Value["email"])
                     {
                         HashSet<int> merged = new HashSet<int>();
                         foreach (var val in dictControlNumberToChildrenIndex[tuple1.Key]) merged.Add(val);
@@ -1455,7 +1530,7 @@ namespace addresses
                         sw.WriteLine(strHeading);
                         WriteEntry(sw, _Data, tuple.Key);
                         sw.WriteLine("                                                                is SIMILAR TO");
-                        WriteList(sw, _Data, tuple.Value["SimilarEntryList"]);                        
+                        WriteList(sw, _Data, tuple.Value["SimilarEntryList"]);
                     }
                 }
                 sw.Close();
@@ -1465,7 +1540,7 @@ namespace addresses
         private void WriteList(StreamWriter sw, DataTable data, string v)
         {
             string[] list = SplitCSV(v);
-            foreach(var key in list)
+            foreach (var key in list)
             {
                 if (!string.IsNullOrEmpty(key))
                 {
@@ -1489,7 +1564,7 @@ namespace addresses
             int nCN = int.Parse(cn);
             if (nCN < 50000)
                 sw.WriteLine("Project Smile Family - " + S(row[ColumnName.Volunteer]));
-            else if(nCN > 999990)
+            else if (nCN > 999990)
                 sw.WriteLine("Special Family");
             else
                 sw.WriteLine("TFT Entry");
@@ -1506,12 +1581,12 @@ namespace addresses
             {
                 if (!(row["ChildFirst" + i] is System.DBNull))
                 {
-                    if(S(row["ChildFirst" + i]).Length > 0)
+                    if (S(row["ChildFirst" + i]).Length > 0)
                         sw.WriteLine(S(row["ChildFirst" + i]) + " " + S(row["ChildLast" + i]) + " " + S(row["ChildAge" + i]) + " (" +
                             S(row["ChildGender" + i]) + ")");
                 }
             }
-            
+
         }
 
         private string S(object v)
@@ -1525,19 +1600,20 @@ namespace addresses
         #region SimilarChildrenListFinder
         private Dictionary<string, int[]> dictControlNumberToChildrenIndex = new Dictionary<string, int[]>();
 
+        HashSet<int> _tmpHash = new HashSet<int>();
         public void FindSimilarChildrenLists()
         {
             bool AreNumbersUnique(int[] nameIndexes)
             {
-                HashSet<int> hash = new HashSet<int>();
+                _tmpHash.Clear();
                 foreach (var n in nameIndexes)
-                    hash.Add(n);
-                return (hash.Count == nameIndexes.Length);
+                    _tmpHash.Add(n);
+                return (_tmpHash.Count == nameIndexes.Length);
             }
 
             int currentProgress = -1;
             int progress = 0;
-            _currentOperation.Value = "Checking for Similar Children";
+            Log.Write(LogLevel.Info, "Checking for Similar Children");
             List<string> CNsWithChildrenNamingIssues = new List<string>();
             foreach (DataRow r in this._Data.Rows)
             {
@@ -1545,8 +1621,7 @@ namespace addresses
                 if (currentProgress != (int)((double)progress / (double)_Data.Rows.Count * 10f))
                 {
                     currentProgress = (int)((double)progress / (double)_Data.Rows.Count * 10f);
-                    _currentOperation.Value = currentProgress.ToString();
-                    System.Threading.Thread.Sleep(100);
+                    Log.Write(LogLevel.Info, $"Checking for Similar Children - step {currentProgress} of 10.");
                 }
                 (int[] nameIndexes, int numChildren) = GetChildren(r);
                 string cn = (string)r[ColumnName.ControlNumber];
@@ -1558,20 +1633,13 @@ namespace addresses
                 dictControlNumberProperties[cn]["ChildrenDupsList"] = string.Empty;
                 dictControlNumberProperties[cn]["index"] = (string)r[ColumnName.BookNumber] + ',' + (string)r[ColumnName.PageNumber];
             }
-            _currentOperation.Value = " - Clearing Dups List ";
+            Log.Write(LogLevel.Info, " - Clearing Dups List ");
             foreach (var tuple1 in dictControlNumberToChildrenIndex)
             {
-                if(!dictControlNumberProperties.ContainsKey(tuple1.Key) )
-                    dictControlNumberProperties[tuple1.Key] = new Dictionary<string, string>();                
+                if (!dictControlNumberProperties.ContainsKey(tuple1.Key))
+                    dictControlNumberProperties[tuple1.Key] = new Dictionary<string, string>();
             }
-            {
-                StreamWriter sw = new StreamWriter(_OutputDir + "/ChildNamingIssues.dat");
-                foreach (var cn in CNsWithChildrenNamingIssues)
-                {
-                    sw.WriteLine(cn);
-                }
-                sw.Close();
-            }
+            File.WriteAllLines(_OutputDir + "/ChildNamingIssues.dat", CNsWithChildrenNamingIssues);
 
             progress = 0;
             currentProgress = -1;
@@ -1583,7 +1651,7 @@ namespace addresses
                 if (currentProgress != (int)((double)progress / (double)dictControlNumberToChildrenIndex.Count * 10f))
                 {
                     currentProgress = (int)((double)progress / (double)dictControlNumberToChildrenIndex.Count * 10f);
-                    _currentOperation.Value = currentProgress.ToString();
+                    Log.Write(LogLevel.Info, currentProgress.ToString());
                 }
                 // are there at least 2 children
                 if (tuple1.Value.Length > 2)
@@ -1614,7 +1682,7 @@ namespace addresses
             foreach (var tuple in dictControlNumberProperties)
             {
                 if (!string.IsNullOrEmpty(tuple.Value["ChildrenDupsIssue"]))
-                    sw2.WriteLine(tuple.Key + '(' + tuple.Value["index"] +") : " + tuple.Value["ChildrenDupsIssue"]);
+                    sw2.WriteLine(tuple.Key + '(' + tuple.Value["index"] + ") : " + tuple.Value["ChildrenDupsIssue"]);
             }
             sw2.Close();
 
@@ -1686,6 +1754,6 @@ namespace addresses
 
             return (childrenIndexes, (int)childrenNames.Count);
         }
-    #endregion
+        #endregion
     }
 }
