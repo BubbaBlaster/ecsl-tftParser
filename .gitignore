@@ -2,5 +2,24 @@
 # This .gitignore file was automatically created by Microsoft(R) Visual Studio.
 ################################################################################
 
-/TFTApp/.vs/TFTApp/v14/.suo
-/TFTApp/~$lkUpForm.docx
+*.cache
+*.suo
+[Dd]ebug/
+[Rr]elease/
+[Bb]in/
+[Oo]bj/
+.vs/
+
+
+[Pp]ackages/
+![Pp]ackages/repositories.config
+*.vspscc
+*.user
+*.vssscc
+*.dbmdl
+*.pubxml
+*.Publish.xml
+*.pyc
+*.coverage
+/Apps/Stimulation/UpgradeLog.htm
+/WarriorLink

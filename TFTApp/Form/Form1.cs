@@ -27,7 +27,7 @@ namespace TFT
         {
             InitializeComponent();
 
-            Log.Add(new ListBoxLogger(listBox1));
+            Log.Add(new ListViewLoggerTarget(listView1));
 
             sw.AutoReset = false;
             sw.Interval = 1500;
