@@ -388,13 +388,20 @@ namespace addresses
             int totalRegNoShowPS = 0;
             int totalRegNoShowTFT = 0;
 
-            string filename = _InputDir + "/NoShows.csv";
+            string filename = _InputDir + "/NoShows-Raw.csv";
+            string outFile = _OutputDir + "/NoShows-Processed.csv";
 
-            if (!File.Exists(filename)) return;
+            if (!File.Exists(filename))
+            {
+                Log.Write(LogLevel.Warn, "Missing <" + filename + ">.  After the event, this file is needed to produce event statistics.");
+                return;
+            }
 
             using (var fs = new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
             using (var sr = new StreamReader(fs, Encoding.Default))
+            using (var of = new StreamWriter(outFile))
             {
+                of.WriteLine("CONTACT LAST,CONTACT FIRST,PHONE,EMAIL");
                 do
                 {
                     String cn = sr.ReadLine();
@@ -408,6 +415,10 @@ namespace addresses
                             continue;
                         }
                         row[ColumnName.pDup] = "N";
+                        of.WriteLine((string)row[ColumnName.ContactLast] + ',' +
+                            (string)row[ColumnName.ContactFirst] + ',' +
+                            (string)row[ColumnName.Phone] + ',' +
+                            (string)row[ColumnName.Email]);
                         int kids = int.Parse((string)row[ColumnName.Total]);
                         totalKidsNoShow += kids;
                         if (String.Compare("Project Smile", (string)row[ColumnName.Organization]) == 0)
@@ -424,15 +435,21 @@ namespace addresses
                 } while (!sr.EndOfStream);
             }
 
-            StreamWriter sw = new StreamWriter(_OutputDir + "/NoShowsStatistics.csv");
-            sw.WriteLine("Total Num Kids," + _totalKids);
-            sw.WriteLine("Total NoShows Kids," + totalKidsNoShow);
-            sw.WriteLine("Project Smile NoShows Kids," + totalKidsNoShowPS + "," + 100f * totalKidsNoShowPS / _totalKidsPS + "%\n");
-            sw.WriteLine("TFT NoShows Kids = " + totalKidsNoShowTFT + "," + 100f * totalKidsNoShowTFT / _totalKidsTFT + "%\n");
-
-            sw.WriteLine("Total Num Registrations," + totalRegistrations);
-            sw.WriteLine("Total NoShow PS," + totalRegNoShowPS + "," + 100f * totalRegNoShowPS / _totalRegPS + "%\n");
-            sw.WriteLine("Total NoShow TFT," + totalRegNoShowTFT + "," + 100f * totalRegNoShowTFT / _totalRegTFT + "%\n");
+            StreamWriter sw = new StreamWriter(_OutputDir + "/EventStatistics.csv");
+            sw.WriteLine("Total Kids," + _totalKids);
+            sw.WriteLine("Total PS Kids," + _totalKidsPS);
+            sw.WriteLine("Total TFT Kids," + _totalKidsTFT);
+            sw.WriteLine("NoShows Kids," + totalKidsNoShow);
+            sw.WriteLine("PS NoShows Kids," + totalKidsNoShowPS + " (" + (100f * totalKidsNoShowPS / _totalKidsPS).ToString("00.0") + "%)");
+            sw.WriteLine("TFT NoShows Kids," + totalKidsNoShowTFT + " (" + (100f * totalKidsNoShowTFT / _totalKidsTFT).ToString("00.0") + "%)");
+            sw.WriteLine("Total Kids Served," + (_totalKids - totalKidsNoShowPS - totalKidsNoShowTFT));
+            sw.WriteLine();
+            sw.WriteLine("Total Num Regs," + totalRegistrations);
+            sw.WriteLine("Total PS Regs," + _totalRegPS);
+            sw.WriteLine("Total TFT Regs," + _totalRegTFT);
+            sw.WriteLine("Total NoShow PS," + totalRegNoShowPS + " (" + (100f * totalRegNoShowPS / _totalRegPS).ToString("00.0") + "%)");
+            sw.WriteLine("Total NoShow TFT," + totalRegNoShowTFT + " (" + (100f * totalRegNoShowTFT / _totalRegTFT).ToString("00.0") + "%)");
+            sw.WriteLine("Total Families Served," + (totalRegistrations - totalRegNoShowPS - totalRegNoShowTFT));
             sw.Close();
         }
 
