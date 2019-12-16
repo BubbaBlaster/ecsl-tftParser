@@ -390,6 +390,7 @@ namespace addresses
 
             string filename = _InputDir + "/NoShows-Raw.csv";
             string outFile = _OutputDir + "/NoShows-Processed.csv";
+            string outFilePSEntries = _OutputDir + "/PSNoShowsList.csv";
 
             if (!File.Exists(filename))
             {
@@ -400,8 +401,10 @@ namespace addresses
             using (var fs = new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
             using (var sr = new StreamReader(fs, Encoding.Default))
             using (var of = new StreamWriter(outFile))
+            using (var ofPS = new StreamWriter(outFilePSEntries))
             {
                 of.WriteLine("CONTACT LAST,CONTACT FIRST,PHONE,EMAIL");
+                ofPS.WriteLine("CONTROL NUMBER, CONTACT LAST,CONTACT FIRST,PENALTY,VOLUNTEER");
                 do
                 {
                     String cn = sr.ReadLine();
@@ -425,6 +428,11 @@ namespace addresses
                         {
                             totalKidsNoShowPS += kids;
                             totalRegNoShowPS++;
+                            ofPS.WriteLine((string)row[ColumnName.ControlNumber] + ',' +
+                                (string)row[ColumnName.ContactLast] + ',' +
+                                (string)row[ColumnName.ContactFirst] + ',' +
+                                (string)(row[ColumnName.Penalty] is System.DBNull ? string.Empty : row[ColumnName.Penalty]) + ',' +
+                                (string)row[ColumnName.Volunteer]);
                         }
                         else
                         {
