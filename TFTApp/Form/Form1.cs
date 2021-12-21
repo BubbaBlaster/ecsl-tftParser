@@ -28,6 +28,7 @@ namespace TFT
             InitializeComponent();
 
             Log.Add(new ListViewLoggerTarget(listView1));
+            Log.Add(new ApplicationFileLoggerTarget(@"N:\TFTGit"));
 
             sw.AutoReset = false;
             sw.Interval = 1500;

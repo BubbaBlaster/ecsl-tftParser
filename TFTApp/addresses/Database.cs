@@ -17,14 +17,13 @@ namespace addresses
         public DataTable _Data { get; } = new DataTable();
 
         private DataTable _rawTFTData;
-        private DataTable _rawPSData;
         private DataTable _rawSpecialData;
         private DataTable _rawNoShows;
         private DataTable _rawBanned;
 
         ObservableString _currentOperation = ObservableString.Get("CurrentOperation");
         private string _OutputDir, _InputDir;
-        private string _TFT_Filename, _PS_Filename, _Special_Filename, _Banned_Filename, _NoShowRaw_Filename;
+        private string _TFT_Filename, _Special_Filename, _Banned_Filename, _NoShowRaw_Filename;
         private List<string> _NoShow_Filenames;
 
         Dictionary<string, int> _NoShowPhones, _NoShowEmails;
@@ -46,8 +45,8 @@ namespace addresses
             AppConfiguration.AppConfig.TryGetSetting("Data.TFTFilename", out Setting tftname);
             _TFT_Filename = tftname.Val;
 
-            AppConfiguration.AppConfig.TryGetSetting("Data.PSFilename", out Setting psname);
-            _PS_Filename = psname.Val;
+            //AppConfiguration.AppConfig.TryGetSetting("Data.PSFilename", out Setting psname);
+            //_PS_Filename = psname.Val;
 
             AppConfiguration.AppConfig.TryGetSetting("Data.SpecialFilename", out Setting specialname);
             _Special_Filename = specialname.Val;
@@ -77,25 +76,21 @@ namespace addresses
                 ReadBanned();
 
                 ReadTFTRawData();
-                ReadPSRawData();
                 ReadSpecialRawData();
 
                 Merge();
 
                 ComputeBreakOut();
 
-                WriteBook1();
-                WriteBook2();
-                WriteBook3();
-                WriteBook4();
+                WriteBook();
                 WriteSpecial();
-
-                WriteProjectSmileInvitations();
                 WriteTFTEmails();
 
                 ProcessNoShowsRaw();
 
                 CheckDuplicates();
+
+                CheckChildrenFirstNamesNotEmpty();
 
                 ComputeNoShows();
             }
@@ -104,6 +99,33 @@ namespace addresses
                 Log.WriteException(LogLevel.Fatal, e, "Exception while creating database.");
                 return;
             }
+        }
+
+        private void CheckChildrenFirstNamesNotEmpty()
+        {
+            Log.Write(LogLevel.Info, "Checking for Empty First Names");
+
+            StreamWriter sw = new StreamWriter(_OutputDir + "/FirstNameErrors.dat");
+
+            // construct the data to search
+            foreach (DataRow r in this._Data.Rows)
+            {
+                for (int i = 1; i < 11; i++)
+                {
+                    string colFirstName = "ChildFirst" + i;
+                    string colLastName = "ChildLast" + i;
+                    string colAge = "ChildAge" + i;
+                    string colGender = "ChildGender" + i;
+
+                    if (!(r[colAge] is System.DBNull) && !string.IsNullOrEmpty((string)r[colAge]) && 
+                        r[colFirstName] is System.DBNull)
+                    {
+                        sw.Write((string)r[ColumnName.Organization] + ',' + (string)r[ColumnName.ControlNumber]);
+                        i = 11; // force it out                        
+                    }
+                }
+            }
+            sw.Close();
         }
 
         bool ProcessNoShowsRaw()
@@ -281,6 +303,8 @@ namespace addresses
                         Log.Write(LogLevel.Warn, "NoShows DB: '" + fn + "' not found in '" + _InputDir + "' - Skipping");
                         continue;
                     }
+                    else
+                        Log.Write(LogLevel.Info, $"Reading NoShowDB - {filename}");
 
                     HashSet<string> _uniqueLines = new HashSet<string>();
 
@@ -308,6 +332,7 @@ namespace addresses
                         {
                             line = sr.ReadLine();
                             if (!_uniqueLines.Add(line)) continue;
+                            lineNumber++;
 
                             string[] tagInfo = SplitCSV(line);
 
@@ -337,6 +362,7 @@ namespace addresses
                             if (sr.EndOfStream)
                                 go = false;
                         } while (go);
+                        Log.Write(LogLevel.Info, $"--- Num Records == {lineNumber}");
                     }
                 }
                 catch (Exception e)
@@ -382,15 +408,11 @@ namespace addresses
         {
             int lineNumber = 0;
             int totalKidsNoShow = 0;
-            int totalKidsNoShowPS = 0;
-            int totalKidsNoShowTFT = 0;
             int totalRegistrations = _Data.Rows.Count;
-            int totalRegNoShowPS = 0;
-            int totalRegNoShowTFT = 0;
+            int totalRegNoShow = 0;
 
-            string filename = _InputDir + "/NoShows-Raw.csv";
+            string filename = _InputDir + "/" + _NoShowRaw_Filename;
             string outFile = _OutputDir + "/NoShows-Processed.csv";
-            string outFilePSEntries = _OutputDir + "/PSNoShowsList.csv";
 
             if (!File.Exists(filename))
             {
@@ -398,13 +420,23 @@ namespace addresses
                 return;
             }
 
+            // Compute Totals
+            int totalNSBoys_0_2 = 0,
+            totalNSBoys_3_6 = 0,
+            totalNSBoys_7_11 = 0,
+            totalNSBoys_12_16 = 0,
+            totalNSBoys_17 = 0,
+            totalNSGirls_0_2 = 0,
+            totalNSGirls_3_6 = 0,
+            totalNSGirls_7_11 = 0,
+            totalNSGirls_12_16 = 0,
+            totalNSGirls_17 = 0;            
+
             using (var fs = new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
             using (var sr = new StreamReader(fs, Encoding.Default))
             using (var of = new StreamWriter(outFile))
-            using (var ofPS = new StreamWriter(outFilePSEntries))
             {
                 of.WriteLine("CONTACT LAST,CONTACT FIRST,PHONE,EMAIL");
-                ofPS.WriteLine("CONTROL NUMBER, CONTACT LAST,CONTACT FIRST,PENALTY,VOLUNTEER");
                 do
                 {
                     String cn = sr.ReadLine();
@@ -424,40 +456,54 @@ namespace addresses
                             (string)row[ColumnName.Email]);
                         int kids = int.Parse((string)row[ColumnName.Total]);
                         totalKidsNoShow += kids;
-                        if (String.Compare("Project Smile", (string)row[ColumnName.Organization]) == 0)
-                        {
-                            totalKidsNoShowPS += kids;
-                            totalRegNoShowPS++;
-                            ofPS.WriteLine((string)row[ColumnName.ControlNumber] + ',' +
-                                (string)row[ColumnName.ContactLast] + ',' +
-                                (string)row[ColumnName.ContactFirst] + ',' +
-                                (string)(row[ColumnName.Penalty] is System.DBNull ? string.Empty : row[ColumnName.Penalty]) + ',' +
-                                (string)row[ColumnName.Volunteer]);
-                        }
-                        else
-                        {
-                            totalKidsNoShowTFT += kids;
-                            totalRegNoShowTFT++;
-                        }
+                        totalRegNoShow++;
+
+                        CountKids(row, Gender.Male, 0, 2, out int countTFT);
+                        totalNSBoys_0_2 += countTFT;
+                        CountKids(row, Gender.Male, 3, 6, out countTFT);
+                        totalNSBoys_3_6 += countTFT;
+                        CountKids(row, Gender.Male, 7, 10, out countTFT);
+                        totalNSBoys_7_11 += countTFT;
+                        CountKids(row, Gender.Male, 11, 16, out countTFT);
+                        totalNSBoys_12_16 += countTFT;
+                        CountKids(row, Gender.Male, 17, 18, out countTFT);
+                        totalNSBoys_17 += countTFT;
+                        CountKids(row, Gender.Female, 0, 2, out countTFT);
+                        totalNSGirls_0_2 += countTFT;
+                        CountKids(row, Gender.Female, 3, 6, out countTFT);
+                        totalNSGirls_3_6 += countTFT;
+                        CountKids(row, Gender.Female, 7, 10, out countTFT);
+                        totalNSGirls_7_11 += countTFT;
+                        CountKids(row, Gender.Female, 11, 16, out countTFT);
+                        totalNSGirls_12_16 += countTFT;
+                        CountKids(row, Gender.Female, 17, 18, out countTFT);
+                        totalNSGirls_17 += countTFT;
                     }
                 } while (!sr.EndOfStream);
             }
 
             StreamWriter sw = new StreamWriter(_OutputDir + "/EventStatistics.csv");
-            sw.WriteLine("Total Kids," + _totalKids);
-            sw.WriteLine("Total PS Kids," + _totalKidsPS);
-            sw.WriteLine("Total TFT Kids," + _totalKidsTFT);
-            sw.WriteLine("NoShows Kids," + totalKidsNoShow);
-            sw.WriteLine("PS NoShows Kids," + totalKidsNoShowPS + " (" + (100f * totalKidsNoShowPS / _totalKidsPS).ToString("00.0") + "%)");
-            sw.WriteLine("TFT NoShows Kids," + totalKidsNoShowTFT + " (" + (100f * totalKidsNoShowTFT / _totalKidsTFT).ToString("00.0") + "%)");
-            sw.WriteLine("Total Kids Served," + (_totalKids - totalKidsNoShowPS - totalKidsNoShowTFT));
+            sw.WriteLine("Total Kids Registered," + _totalKids);
+            sw.WriteLine("NoShows Kids," + totalKidsNoShow + " (" + (100f * totalKidsNoShow / _totalKids).ToString("00.0") + "%)");
+            sw.WriteLine("Total Kids Served," + (_totalKids - totalKidsNoShow)) ;
             sw.WriteLine();
             sw.WriteLine("Total Num Regs," + totalRegistrations);
-            sw.WriteLine("Total PS Regs," + _totalRegPS);
-            sw.WriteLine("Total TFT Regs," + _totalRegTFT);
-            sw.WriteLine("Total NoShow PS," + totalRegNoShowPS + " (" + (100f * totalRegNoShowPS / _totalRegPS).ToString("00.0") + "%)");
-            sw.WriteLine("Total NoShow TFT," + totalRegNoShowTFT + " (" + (100f * totalRegNoShowTFT / _totalRegTFT).ToString("00.0") + "%)");
-            sw.WriteLine("Total Families Served," + (totalRegistrations - totalRegNoShowPS - totalRegNoShowTFT));
+            sw.WriteLine("Total NoShow Regs," + totalRegNoShow + " (" + (100f * totalRegNoShow / totalRegistrations).ToString("00.0") + "%)");
+            sw.WriteLine("Total Families Served," + (totalRegistrations - totalRegNoShow));
+            sw.WriteLine();
+            sw.WriteLine("Boys:");
+            sw.WriteLine($"\t0-2: {totalNSBoys_0_2} / {_totalBoys_0_2} = {totalNSBoys_0_2 / (double)_totalBoys_0_2 * 100f:F2}");
+            sw.WriteLine($"\t3-6: {totalNSBoys_3_6} / {_totalBoys_3_6} = {totalNSBoys_3_6 / (double) _totalBoys_3_6 * 100f:F2}");
+            sw.WriteLine($"\t7-11: {totalNSBoys_7_11} / {_totalBoys_7_11} = {totalNSBoys_7_11 / (double)_totalBoys_7_11 * 100f:F2}");
+            sw.WriteLine($"\t12-16: {totalNSBoys_12_16} / {_totalBoys_12_16} = {totalNSBoys_12_16 / (double)_totalBoys_12_16 * 100f:F2}");
+            sw.WriteLine($"\t17: {totalNSBoys_17} / {_totalBoys_17} = {totalNSBoys_17 / (double)_totalBoys_17 * 100f:F2}");
+            sw.WriteLine("Girls:");
+            sw.WriteLine($"\t0-2: {totalNSGirls_0_2} / {_totalGirls_0_2} = {totalNSGirls_0_2 / (double)_totalGirls_0_2 * 100f:F2}");
+            sw.WriteLine($"\t3-6: {totalNSGirls_3_6} / {_totalGirls_3_6} = {totalNSGirls_3_6 / (double)_totalGirls_3_6 * 100f:F2}");
+            sw.WriteLine($"\t7-11: {totalNSGirls_7_11} / {_totalGirls_7_11} = {totalNSGirls_7_11 / (double)_totalGirls_7_11 * 100f:F2}");
+            sw.WriteLine($"\t12-16: {totalNSGirls_12_16} / {_totalGirls_12_16} = {totalNSGirls_12_16 / (double)_totalGirls_12_16 * 100f:F2}");
+            sw.WriteLine($"\t17: {totalNSGirls_17} / {_totalGirls_17} = {totalNSGirls_17 / (double)_totalGirls_17 * 100f:F2}");
+
             sw.Close();
         }
 
@@ -467,6 +513,9 @@ namespace addresses
             _Data.Clear();
             foreach (var colName in ColumnName.Array)
                 _Data.Columns.Add(colName);
+
+            foreach (var colName in ColumnName.ArrayInts)
+                _Data.Columns.Add(new DataColumn(colName, typeof(int)));
 
             _Data.PrimaryKey = new DataColumn[1] { _Data.Columns[ColumnName.ControlNumber] };
         }
@@ -523,6 +572,7 @@ namespace addresses
                     do
                     {
                         line = sr.ReadLine();
+                        if (line == null) return true;
                         string[] tagInfo = SplitCSV(line);
 
                         if (tagInfo.Length != header.Length)
@@ -625,8 +675,10 @@ namespace addresses
                                 string tag = tagInfo[ii].Trim(new char[] { '"', '\\', ',' });
                                 row[header[ii]] = Pretty(tag);
                             }
-                            if (string.Compare("pending", (string)row[ColumnName.Status], true) == 0 ||
-                                string.Compare("verify", (string)row[ColumnName.Status], true) == 0)
+                            string state = (string)row[ColumnName.Status];
+                            if (string.Compare("pending", state, true) == 0 ||
+                                string.Compare("verify", state, true) == 0 ||
+                                string.Compare("approved", state, true) == 0)
                             {
                                 row[ColumnName.State] = "Texas";
                                 row[ColumnName.TimeSlot] = string.Empty;
@@ -648,6 +700,8 @@ namespace addresses
 
                                 _rawTFTData.Rows.Add(row);
                             }
+                            else
+                                Log.Write(LogLevel.Trace, $"Skipping {(string)row[ColumnName.RequestID]} - {state}");
                         }
                         if (sr.EndOfStream)
                             go = false;
@@ -663,173 +717,6 @@ namespace addresses
             return true;
         }
 
-        private bool ReadPSRawData()
-        {
-            Log.Write(LogLevel.Info, "Reading ProjectSmile DB");
-            _rawPSData = new DataTable();
-            int lineNumber = 0;
-            try
-            {
-                string filename = _InputDir + "/" + _PS_Filename;
-                if (!File.Exists(filename))
-                {
-                    Log.Write(LogLevel.Warn, "Project Smile DB: '" + _PS_Filename + "' not found in '" + _InputDir + "' - Skipping");
-                    return false;
-                }
-
-                using (var fs = new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
-                using (var sr = new StreamReader(fs, Encoding.Default))
-                {
-                    String line = sr.ReadLine();
-                    lineNumber++;
-                    String[] header = SplitCSV(line);
-                    for (int i = 0; i < header.Length; i++)
-                    {
-                        string columnName = header[i] = header[i].Trim(new char[] { '"', '\\', ',' });
-                        _rawPSData.Columns.Add(columnName);
-                    }
-                    #region Add Missing Rows
-                    //rawPSData.Columns.Add(ColumnName.ControlNumber);
-                    _rawPSData.Columns.Add(ColumnName.Organization);
-                    _rawPSData.Columns.Add(ColumnName.Phone2);
-                    _rawPSData.Columns.Add(ColumnName.TimeSlot);
-                    _rawPSData.Columns.Add(ColumnName.TimeSlotIndex);
-                    _rawPSData.Columns.Add(ColumnName.ChildAge1);
-                    _rawPSData.Columns.Add(ColumnName.ChildAge2);
-                    _rawPSData.Columns.Add(ColumnName.ChildAge3);
-                    _rawPSData.Columns.Add(ColumnName.ChildAge4);
-                    _rawPSData.Columns.Add(ColumnName.ChildAge5);
-                    _rawPSData.Columns.Add(ColumnName.ChildAge6);
-                    _rawPSData.Columns.Add(ColumnName.ChildAge7);
-                    _rawPSData.Columns.Add(ColumnName.ChildAge8);
-                    _rawPSData.Columns.Add(ColumnName.ChildAge9);
-                    _rawPSData.Columns.Add(ColumnName.ChildAge10);
-                    _rawPSData.Columns.Add(ColumnName.ChildFirst1);
-                    _rawPSData.Columns.Add(ColumnName.ChildFirst2);
-                    _rawPSData.Columns.Add(ColumnName.ChildFirst3);
-                    _rawPSData.Columns.Add(ColumnName.ChildFirst4);
-                    _rawPSData.Columns.Add(ColumnName.ChildFirst5);
-                    _rawPSData.Columns.Add(ColumnName.ChildFirst6);
-                    _rawPSData.Columns.Add(ColumnName.ChildFirst7);
-                    _rawPSData.Columns.Add(ColumnName.ChildFirst8);
-                    _rawPSData.Columns.Add(ColumnName.ChildFirst9);
-                    _rawPSData.Columns.Add(ColumnName.ChildFirst10);
-                    _rawPSData.Columns.Add(ColumnName.ChildLast1);
-                    _rawPSData.Columns.Add(ColumnName.ChildLast2);
-                    _rawPSData.Columns.Add(ColumnName.ChildLast3);
-                    _rawPSData.Columns.Add(ColumnName.ChildLast4);
-                    _rawPSData.Columns.Add(ColumnName.ChildLast5);
-                    _rawPSData.Columns.Add(ColumnName.ChildLast6);
-                    _rawPSData.Columns.Add(ColumnName.ChildLast7);
-                    _rawPSData.Columns.Add(ColumnName.ChildLast8);
-                    _rawPSData.Columns.Add(ColumnName.ChildLast9);
-                    _rawPSData.Columns.Add(ColumnName.ChildLast10);
-                    _rawPSData.Columns.Add(ColumnName.ChildGender1);
-                    _rawPSData.Columns.Add(ColumnName.ChildGender2);
-                    _rawPSData.Columns.Add(ColumnName.ChildGender3);
-                    _rawPSData.Columns.Add(ColumnName.ChildGender4);
-                    _rawPSData.Columns.Add(ColumnName.ChildGender5);
-                    _rawPSData.Columns.Add(ColumnName.ChildGender6);
-                    _rawPSData.Columns.Add(ColumnName.ChildGender7);
-                    _rawPSData.Columns.Add(ColumnName.ChildGender8);
-                    _rawPSData.Columns.Add(ColumnName.ChildGender9);
-                    _rawPSData.Columns.Add(ColumnName.ChildGender10);
-                    _rawPSData.Columns.Add(ColumnName.Total);
-                    _rawPSData.Columns.Add(ColumnName.Penalty);
-                    #endregion
-                    _rawPSData.PrimaryKey = new DataColumn[1] { _rawPSData.Columns[ColumnName.ControlNumber] };
-
-                    bool go = true;
-                    string lastFamilyID = string.Empty;
-                    DataRow lastRow = null;
-                    int totalKidsInFamily = 0;
-                    do
-                    {
-                        line = sr.ReadLine();
-                        lineNumber++;
-                        string[] tagInfo = SplitCSV(line);
-
-                        if (tagInfo.Length != header.Length)
-                            go = false;
-                        else
-                        {
-                            DataRow row = _rawPSData.NewRow();
-                            for (int ii = 0; ii < header.Length; ii++)
-                            {
-                                string tag = tagInfo[ii].Trim(new char[] { '"', '\\', ',' });
-                                row[header[ii]] = Pretty(tag);
-                            }
-                            row[ColumnName.State] = "Texas";
-                            row[ColumnName.Organization] = "Project Smile";
-                            row[ColumnName.Phone2] = string.Empty;
-
-                            // correct the age (rounding down) to check to see if child is too old
-                            string agekey = "CHILDAGE";
-                            if (float.TryParse((string)row[agekey], out float age))
-                            {
-                                int nAge = (int)age;
-                                // Correct the age
-                                row[agekey] = nAge.ToString();
-
-                                // Check age
-                                if (nAge > 17)
-                                {
-                                    Log.Write(LogLevel.Warn, "Project Smile - [" + row[ColumnName.ControlNumber] + "] " + row[ColumnName.ContactFirst] + " " + row[ColumnName.ContactLast]
-                                         + " child '" + (string)row["CHILDNAME"] + "' is above the age limit.");
-                                    continue;
-                                }
-                            }
-
-                            if (string.Compare("pending", (string)row[ColumnName.Status], true) != 0) continue;
-
-                            if (int.Parse((string)row[ColumnName.FamilyID]) > 0)
-                            {
-                                if (lastRow != null && string.Compare(lastFamilyID, (string)row[ColumnName.FamilyID]) == 0) // merge into last
-                                {
-                                    totalKidsInFamily++;
-                                    if (totalKidsInFamily > 10)
-                                        Log.Write(LogLevel.Info, $"Project Smile - [{row[ColumnName.FamilyID]}] has {totalKidsInFamily} kids!");
-                                    else
-                                    {
-                                        lastRow[ColumnName.ChildAge + totalKidsInFamily] = row[ColumnName.ChildAge];
-                                        lastRow[ColumnName.ChildFirst + totalKidsInFamily] = row[ColumnName.ChildFirst];
-                                        lastRow[ColumnName.ChildLast + totalKidsInFamily] = row[ColumnName.ChildLast];
-                                        lastRow[ColumnName.ChildGender + totalKidsInFamily] = row[ColumnName.ChildGender];
-                                        lastRow[ColumnName.Total] = totalKidsInFamily;
-                                    }
-                                }
-                                else
-                                {
-                                    totalKidsInFamily = 1;
-                                    lastFamilyID = (string)row[ColumnName.FamilyID];
-                                    lastRow = row;
-                                    row[ColumnName.ControlNumber] = row[ColumnName.FamilyID];
-                                    row[ColumnName.ChildAge1] = row[ColumnName.ChildAge];
-                                    row[ColumnName.ChildFirst1] = row[ColumnName.ChildFirst];
-                                    row[ColumnName.ChildLast1] = row[ColumnName.ChildLast];
-                                    row[ColumnName.ChildGender1] = row[ColumnName.ChildGender];
-                                    row[ColumnName.Total] = totalKidsInFamily;
-                                    Penalize(row);
-
-                                    if (string.Compare("Pending", (string)row[ColumnName.Status]) == 0)
-                                        _rawPSData.Rows.Add(row);
-                                }
-                            }
-                        }
-                        if (sr.EndOfStream)
-                            go = false;
-                    } while (go);
-                }
-            }
-            catch (Exception e)
-            {
-                Log.WriteException(LogLevel.Warn, e, "Reading ProjectSmile DB - Failed");
-                return false;
-            }
-            Log.Write(LogLevel.Info, "Reading ProjectSmile DB - Done - " + lineNumber + " Parsed");
-            return true;
-        }
-
         public void WriteSpecial()
         {
             Log.Write(LogLevel.Info, "Writing Special");
@@ -841,27 +728,36 @@ namespace addresses
             int page = 1;
             foreach (var e in Entries)
             {
-                e[ColumnName.BookNumber] = "Late";
+                e[ColumnName.BookNumber] = 3;
                 e[ColumnName.PageNumber] = page++;
             }
             WriteCSV("LateOut.csv", Entries, false);
         }
 
-        public void WriteBook1()
+        public void WriteBook()
         {
-            Log.Write(LogLevel.Info, "Writing Book1");
+            Log.Write(LogLevel.Info, $"Writing Book");
             var Entries = from myRow in _Data.AsEnumerable()
-                          where (myRow.Field<string>(ColumnName.ContactLast).CompareTo(_strBreak1End) <= 0)
+                              //where (myRow.Field<string>(ColumnName.ContactLast).CompareTo(_strBreak1End) <= 0)
                           orderby myRow.Field<string>(ColumnName.TimeSlotIndex) ascending, myRow.Field<string>(ColumnName.ContactLast)
                           select myRow;
 
-            int page = 1;
+            int[] page = { 1, 1 };
+            int numEntries = Entries.Count();
+            int book = 0;
             foreach (var e in Entries)
             {
-                e[ColumnName.BookNumber] = "1";
-                e[ColumnName.PageNumber] = page++;
+                e[ColumnName.BookNumber] = (int)(book + 1);
+                e[ColumnName.PageNumber] = (int)(page[book]);
+                page[book]++;
+                book = (book + 1) % 2;
             }
-            WriteCSV("RegistrationBook.csv", Entries, false);
+
+            var ResortedEntries = from myRow in _Data.AsEnumerable()
+                                  orderby myRow.Field<int>(ColumnName.BookNumber) ascending, myRow.Field<int>(ColumnName.PageNumber)
+                                  select myRow;
+
+            WriteCSV("RegistrationBook.csv", ResortedEntries, false);
         }
 
         public void WriteBook2()
@@ -961,43 +857,19 @@ namespace addresses
             row[name] = rawRow[name];
         }
 
+        string[] timeSlot = { "8:00AM-9:00AM", "9:00AM-10:00AM", "10:00AM-11:00AM", "11:00AM-Noon", "1:00PM-2:00PM", "2:00PM-3:00PM", "3:00PM-4:00PM", "4:00PM-5:00PM" };
+
         public void Merge()
         {
             Log.Write(LogLevel.Info, "Merging");
-            string[] timeSlot = { "8:00AM-10:00AM", "10:00AM-Noon", "1:00PM-3:00PM", "3:00PM-5:00PM" };
-
-            // Merge PS data
             int index = 0;
-            foreach (DataRow rawRow in _rawPSData.Rows)
-            {
-                DataRow row = _Data.NewRow();
-                foreach (DataColumn col in _Data.Columns)
-                {
-                    if (_rawPSData.Columns.Contains(col.ColumnName))
-                        row[col.ColumnName] = rawRow[col.ColumnName];
-                }
-                GenerateRegistrationData(row);
-                CorrectPhone(row);
-
-                // This will randomly distribute Project Smile families
-                if (row[ColumnName.Penalty] is System.DBNull)
-                {
-                    int timeSlotIndex = (index++) % 4;
-                    row[ColumnName.TimeSlotIndex] = timeSlotIndex;
-                    row[ColumnName.TimeSlot] = timeSlot[timeSlotIndex];
-                }
-                else
-                {
-                    row[ColumnName.TimeSlotIndex] = 3;
-                    row[ColumnName.TimeSlot] = timeSlot[3];
-                }
-
-                _Data.Rows.Add(row);
-            }
+            int count0 = 0, count7 = 0;
 
             // Merge TFT data
             index = 0;
             int totalRows = _rawTFTData.Rows.Count + 1;
+            count0 = 0;
+            count7 = 0;
             foreach (DataRow rawRow in _rawTFTData.Rows)
             {
                 DataRow row = _Data.NewRow();
@@ -1011,17 +883,25 @@ namespace addresses
                 CorrectPhone(row);
 
                 // This will put TFT families in the order of entry
-                // This will randomly distribute Project Smile families
                 if (row[ColumnName.Penalty] is System.DBNull)
                 {
-                    int timeSlotIndex = (int)((double)(index++) / (double)(totalRows / 4.0f));
+                    int timeSlotIndex = (int)((double)(index++) / (double)(totalRows / 8.0f));
+                    if (timeSlotIndex == 0) count0++;
+                    if (timeSlotIndex == 7 && count7 > count0)
+                    {
+                        timeSlotIndex = 0;
+                        count0++;
+                        index++;
+                    }
+                    if (timeSlotIndex == 7) count7++;
                     row[ColumnName.TimeSlotIndex] = timeSlotIndex;
                     row[ColumnName.TimeSlot] = timeSlot[timeSlotIndex];
                 }
                 else
                 {
-                    row[ColumnName.TimeSlotIndex] = 3;
-                    row[ColumnName.TimeSlot] = timeSlot[3];
+                    count7++;
+                    row[ColumnName.TimeSlotIndex] = 7;
+                    row[ColumnName.TimeSlot] = timeSlot[7];
                 }
 
                 _Data.Rows.Add(row);
@@ -1084,17 +964,34 @@ namespace addresses
                 int age = -1;
                 string colNameAge = "ChildAge" + i;
                 string colNameFirstName = "ChildFirst" + i;
+                string colGender = "ChildGender" + i;
                 if (!(r[colNameAge] is System.DBNull) &&
                     !(r[colNameFirstName] is System.DBNull) &&
                     int.TryParse((string)r[colNameAge], out age) &&
                     age < 18)
                 {
                     string firstName = Pretty(((string)r[colNameFirstName]).Trim());
-                    string prefix = "Blue     Blue     Green   .        ";
-                    if (age == 17)
-                        prefix = ".        .        .       GftCrd   ";
+                    StringBuilder prefix = new StringBuilder();
 
-                    r["R" + (i - 1).ToString()] = prefix + age + ": " + firstName;
+                    string gender = (string)r[colGender];
+                    if (gender.Length == 0)
+                        prefix.Append("UNKN ");
+
+                    else
+                        prefix.Append(((string)r[colGender]).Substring(0,1) == "F" ? "Girl " : "Boy  ");
+                    if (age < 3)
+                        prefix.Append("0-2  ");
+                    else if (age < 7)
+                        prefix.Append("3-6  ");
+                    else if (age < 12)
+                        prefix.Append("7-11 ");
+                    else if (age < 17)
+                        prefix.Append("12-16");
+                    else
+                        prefix.Append("17   ");
+                    if (age < 10)
+                        prefix.Append(" ");
+                    r["R" + (i - 1).ToString()] = prefix.ToString() + $" ({age}): " + firstName;
                     bool bFirst = string.IsNullOrEmpty(((string)r[ColumnName.Kids]));
                     r[ColumnName.Kids] = r[ColumnName.Kids] + (bFirst ? "" : ", ") + firstName;
                 }
@@ -1252,48 +1149,49 @@ namespace addresses
                 _totalGirls_3_6 = 0,
                 _totalGirls_7_11 = 0,
                 _totalGirls_12_16 = 0,
-                _totalGirls_17 = 0,
+                _totalGirls_17 = 0;
+        public int
                 _totalKids = 0,
-                _totalKidsPS = 0,
-                _totalKidsTFT = 0,
-                _totalRegPS = 0,
-                _totalRegTFT = 0;
+                _totalReg = 0;
+        public int [,] _boysByTimeSlot, _girlsByTimeSlot;
 
-        public void ComputeBreakOut()
+        void CountKids(DataRow e, Gender gender, int ageBegin, int ageEnd, out int countTFT)
         {
-            int CountKids(DataRow e, Gender gender, int ageBegin, int ageEnd)
+            countTFT = 0;
+            for (int i = 1; i <= 10; i++)
             {
-                int count = 0;
-                for (int i = 1; i <= 10; i++)
+                string colNameAge = "ChildAge" + i;
+                string colNameGender = "ChildGender" + i;
+                if (!(e[colNameAge] is System.DBNull) &&
+                    !(e[colNameGender] is System.DBNull) &&
+                    ((string)e[colNameGender]).Length > 0)
                 {
-                    string colNameAge = "ChildAge" + i;
-                    string colNameGender = "ChildGender" + i;
-                    if (!(e[colNameAge] is System.DBNull) &&
-                        !(e[colNameGender] is System.DBNull) &&
-                        ((string)e[colNameGender]).Length > 0)
+                    char firstChar = ((string)e[colNameGender])[0];
+                    if ((gender == Gender.Male && firstChar == 'M') ||
+                        (gender == Gender.Female && firstChar == 'F'))
                     {
-                        char firstChar = ((string)e[colNameGender])[0];
-                        if ((gender == Gender.Male && firstChar == 'M') ||
-                            (gender == Gender.Female && firstChar == 'F'))
+                        int age = -1;
+                        if (int.TryParse((string)e[colNameAge], out age))
                         {
-                            int age = -1;
-                            if (int.TryParse((string)e[colNameAge], out age))
+                            if (age >= ageBegin && age <= ageEnd)
                             {
-                                if (age >= ageBegin && age <= ageEnd)
-                                    count++;
+                                countTFT++;
                             }
                         }
                     }
                 }
-                return count;
             }
+        }
+
+        public void ComputeBreakOut()
+        {
+            
 
             Log.Write(LogLevel.Info, "Computing BreakOut");
             var entries = from myRow in _Data.AsEnumerable()
                           orderby myRow.Field<string>(ColumnName.ContactLast)
                           select myRow;
             // Compute Totals
-            _totalKids = 0;
             _totalBoys_0_2 = 0;
             _totalBoys_3_6 = 0;
             _totalBoys_7_11 = 0;
@@ -1305,54 +1203,127 @@ namespace addresses
             _totalGirls_12_16 = 0;
             _totalGirls_17 = 0;
             _totalKids = 0;
-            _totalKidsPS = 0;
-            _totalKidsTFT = 0;
-            _totalRegPS = 0;
-            _totalRegTFT = 0;
+            _boysByTimeSlot = new int[8, 5];
+            _girlsByTimeSlot = new int[8, 5];
+
+            int index = 0;
             foreach (var e in entries)
             {
-                if (e.Field<string>(ColumnName.Organization) == "Project Smile")
-                {
-                    _totalKidsPS += Int32.Parse(e.Field<string>(ColumnName.Total));
-                    _totalRegPS++;
-                }
-                else
-                {
-                    _totalKidsTFT += Int32.Parse(e.Field<string>(ColumnName.Total));
-                    _totalRegTFT++;
-                }
+                index++;
+                int totalOnLine = Int32.Parse(e.Field<string>(ColumnName.Total));
+                _totalReg++;
 
-                _totalBoys_0_2 += CountKids(e, Gender.Male, 0, 2);
-                _totalBoys_3_6 += CountKids(e, Gender.Male, 3, 6);
-                _totalBoys_7_11 += CountKids(e, Gender.Male, 7, 11);
-                _totalBoys_12_16 += CountKids(e, Gender.Male, 12, 16);
-                _totalBoys_17 += CountKids(e, Gender.Male, 17, 17);
-                _totalGirls_0_2 += CountKids(e, Gender.Female, 0, 2);
-                _totalGirls_3_6 += CountKids(e, Gender.Female, 3, 6);
-                _totalGirls_7_11 += CountKids(e, Gender.Female, 7, 11);
-                _totalGirls_12_16 += CountKids(e, Gender.Female, 12, 16);
-                _totalGirls_17 += CountKids(e, Gender.Female, 17, 17);
+                int countTFT;
+                int countOnLine = 0;
+                int.TryParse((string)e[ColumnName.TimeSlotIndex], out int timeSlot);
+                CountKids(e, Gender.Male, 0, 2, out countTFT);
+                countOnLine += countTFT;
+                _totalBoys_0_2 += countOnLine = countTFT;
+                _boysByTimeSlot[timeSlot, 0] += countTFT;
+                CountKids(e, Gender.Male, 3, 6, out countTFT);
+                countOnLine += countTFT;
+                _totalBoys_3_6 += countTFT;
+                _boysByTimeSlot[timeSlot, 1] += countTFT;
+                CountKids(e, Gender.Male, 7, 10, out countTFT);
+                countOnLine += countTFT;
+                _totalBoys_7_11 += countTFT;
+                _boysByTimeSlot[timeSlot, 2] += countTFT;
+                CountKids(e, Gender.Male, 11, 16, out countTFT);
+                countOnLine += countTFT;
+                _totalBoys_12_16 += countTFT;
+                _boysByTimeSlot[timeSlot, 3] += countTFT;
+                CountKids(e, Gender.Male, 17, 18, out countTFT);
+                countOnLine += countTFT;
+                _totalBoys_17 += countTFT;
+                _boysByTimeSlot[timeSlot, 4] += countTFT;
+                CountKids(e, Gender.Female, 0, 2, out countTFT);
+                countOnLine += countTFT;
+                _totalGirls_0_2 += countTFT;
+                _girlsByTimeSlot[timeSlot, 0] += countTFT;
+                CountKids(e, Gender.Female, 3, 6, out countTFT);
+                countOnLine += countTFT;
+                _totalGirls_3_6 += countTFT;
+                _girlsByTimeSlot[timeSlot, 1] += countTFT;
+                CountKids(e, Gender.Female, 7, 10, out countTFT);
+                countOnLine += countTFT;
+                _totalGirls_7_11 += countTFT;
+                _girlsByTimeSlot[timeSlot, 2] += countTFT;
+                CountKids(e, Gender.Female, 11, 16, out countTFT);
+                countOnLine += countTFT;
+                _totalGirls_12_16 += countTFT;
+                _girlsByTimeSlot[timeSlot, 3] += countTFT;
+                CountKids(e, Gender.Female, 17, 18, out countTFT);
+                countOnLine += countTFT;
+                _girlsByTimeSlot[timeSlot, 4] += countTFT;
+                _totalGirls_17 += countTFT;
+
+                if (countOnLine != totalOnLine)
+                    Log.Write(LogLevel.Warn, $"Line {index} (cn = {(string)e[ColumnName.ControlNumber]}) - total ({totalOnLine}) != count of kids ({countOnLine})");
             }
-            _totalKids += _totalBoys_0_2 + _totalBoys_3_6 + _totalBoys_7_11 + _totalBoys_12_16 + _totalBoys_17 +
-                _totalGirls_0_2 + _totalGirls_3_6 + _totalGirls_7_11 + _totalGirls_12_16 + _totalGirls_17;
+            _totalKids +=
+                _totalBoys_0_2 + 
+                _totalBoys_3_6 +
+                _totalBoys_7_11 +
+                _totalBoys_12_16 +
+                _totalBoys_17 +
+                _totalGirls_0_2 + 
+                _totalGirls_3_6 + 
+                _totalGirls_7_11 + 
+                _totalGirls_12_16 +
+                _totalGirls_17;
 
             StreamWriter sw = new StreamWriter(_OutputDir + "/RegistrationStatistics.csv");
 
             sw.WriteLine("Total_Registrations," + _Data.Rows.Count);
             sw.WriteLine("Total Accepted," + entries.Count());
-            sw.WriteLine("Total Accepted PS," + _totalRegPS);
-            sw.WriteLine("Total Accepted TFT," + _totalRegTFT);
+            sw.WriteLine();
+
             _currentOperation.Value =
                 "Gender,'0-2,'3-6,'7-11,'12-16,'17" + Environment.NewLine +
-                "Boys," + _totalBoys_0_2 + ',' + _totalBoys_3_6 + ',' + _totalBoys_7_11 + ',' + _totalBoys_12_16 + ',' + _totalBoys_17 + Environment.NewLine +
-                "Girls," + _totalGirls_0_2 + ',' + _totalGirls_3_6 + ',' + _totalGirls_7_11 + ',' + _totalGirls_12_16 + ',' + _totalGirls_17 + Environment.NewLine +
-                "Total," + (_totalGirls_0_2 + _totalBoys_0_2) + ',' + (_totalGirls_3_6 + _totalBoys_3_6) + ',' + (_totalGirls_7_11 + _totalBoys_7_11) + ',' +
-                            (_totalGirls_12_16 + _totalBoys_12_16) + ',' + (_totalGirls_17 + _totalBoys_17);
+                "Boys," + (_totalBoys_0_2) + ',' +
+                          (_totalBoys_3_6) + ',' +
+                          (_totalBoys_7_11) + ',' +
+                          (_totalBoys_12_16) + ',' +
+                          (_totalBoys_17) + Environment.NewLine +
+                "Girls," + (_totalGirls_0_2) + ',' +
+                          (_totalGirls_3_6) + ',' +
+                          (_totalGirls_7_11) + ',' +
+                          (_totalGirls_12_16) + ',' +
+                          (_totalGirls_17) + Environment.NewLine + Environment.NewLine +
+                "Total," + (_totalGirls_0_2 + _totalBoys_0_2) + ',' + 
+                           (_totalGirls_3_6 + _totalBoys_3_6) + ',' + 
+                           (_totalGirls_7_11 + _totalBoys_7_11) + ',' +
+                           (_totalGirls_12_16 + _totalBoys_7_11) + ',' + 
+                           (_totalGirls_17 + _totalBoys_17);
 
             sw.WriteLine(_currentOperation.Value);
+            sw.WriteLine("Total Kids by Group," + _totalKids);
             sw.WriteLine("Total Kids," + _totalKids);
-            sw.WriteLine("Total Kids PS," + _totalKidsPS);
-            sw.WriteLine("Total Kids TFT," + _totalKidsTFT);
+            sw.WriteLine();
+
+            sw.WriteLine("TimeSlot,Cars,'0-2 (b|g),'3-6 (b|g),'7-11 (b|g),'12-16 (b|g),'17 (b|g),Total (b|g|*)");
+            int[] regByTimeSlot = new int[8];
+            regByTimeSlot[0] = (from r in _Data.AsEnumerable() where (string)r[ColumnName.TimeSlotIndex] == "0" select r).Count();
+            regByTimeSlot[1] = (from r in _Data.AsEnumerable() where (string)r[ColumnName.TimeSlotIndex] == "1" select r).Count();
+            regByTimeSlot[2] = (from r in _Data.AsEnumerable() where (string)r[ColumnName.TimeSlotIndex] == "2" select r).Count();
+            regByTimeSlot[3] = (from r in _Data.AsEnumerable() where (string)r[ColumnName.TimeSlotIndex] == "3" select r).Count();
+            regByTimeSlot[4] = (from r in _Data.AsEnumerable() where (string)r[ColumnName.TimeSlotIndex] == "4" select r).Count();
+            regByTimeSlot[5] = (from r in _Data.AsEnumerable() where (string)r[ColumnName.TimeSlotIndex] == "5" select r).Count();
+            regByTimeSlot[6] = (from r in _Data.AsEnumerable() where (string)r[ColumnName.TimeSlotIndex] == "6" select r).Count();
+            regByTimeSlot[7] = (from r in _Data.AsEnumerable() where (string)r[ColumnName.TimeSlotIndex] == "7" select r).Count();
+            for (int i=0;i<8;i++)
+            {
+                sw.Write(timeSlot[i] + ',');
+                sw.Write(regByTimeSlot[i].ToString() + ',');
+                int totalBoys = 0, totalGirls = 0;
+                for(int j=0;j<5;j++)
+                {
+                    sw.Write($"({_boysByTimeSlot[i, j]}|{_girlsByTimeSlot[i, j]}),");
+                    totalBoys += _boysByTimeSlot[i, j];
+                    totalGirls += _girlsByTimeSlot[i, j];
+                }
+                sw.WriteLine($"({totalBoys}|{totalGirls}|{totalBoys + totalGirls})");
+            }
 
             sw.Close();
 
@@ -1648,6 +1619,9 @@ namespace addresses
                     currentProgress = (int)((double)progress / (double)_Data.Rows.Count * 10f);
                     Log.Write(LogLevel.Info, $"Checking for Similar Children - step {currentProgress} of 10.");
                 }
+
+                if (string.Compare((string)r[ColumnName.Status], "approved", true) == 0 ) continue;
+    
                 (int[] nameIndexes, int numChildren) = GetChildren(r);
                 string cn = (string)r[ColumnName.ControlNumber];
                 if (!AreNumbersUnique(nameIndexes))
@@ -1656,7 +1630,7 @@ namespace addresses
                 dictControlNumberProperties[cn] = new Dictionary<string, string>();
                 dictControlNumberProperties[cn]["ChildrenDupsIssue"] = string.Empty;
                 dictControlNumberProperties[cn]["ChildrenDupsList"] = string.Empty;
-                dictControlNumberProperties[cn]["index"] = (string)r[ColumnName.BookNumber] + ',' + (string)r[ColumnName.PageNumber];
+                dictControlNumberProperties[cn]["index"] = r[ColumnName.BookNumber].ToString() + ',' + r[ColumnName.PageNumber].ToString();
             }
             Log.Write(LogLevel.Info, " - Clearing Dups List ");
             foreach (var tuple1 in dictControlNumberToChildrenIndex)

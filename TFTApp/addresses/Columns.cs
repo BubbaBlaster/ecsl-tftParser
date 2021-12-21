@@ -102,9 +102,9 @@
         public const string R8 = "R8";
         public const string R9 = "R9";
         public const string Kids = "KIDS";
-        
 
-        public static string[] Array = 
+
+        public static string[] Array =
         {
             ControlNumber,
             Organization,
@@ -166,8 +166,6 @@
             ChildGender10,
             ChildAge10,
             Comments,
-            BookNumber,
-            PageNumber,
             Volunteer,
             R0,
             R1,
@@ -180,6 +178,12 @@
             R8,
             R9,
             Kids
+        };
+
+        public static string[] ArrayInts =
+        {
+            BookNumber,
+            PageNumber
         };
     }
 }

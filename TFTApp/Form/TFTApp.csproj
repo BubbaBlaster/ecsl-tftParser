@@ -9,7 +9,7 @@
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>TFT</RootNamespace>
     <AssemblyName>TFT</AssemblyName>
-    <TargetFrameworkVersion>v4.7.1</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
     <TargetFrameworkProfile />
@@ -35,14 +35,14 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="Asteria, Version=1.0.7282.27803, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\asteria.1.0.6\lib\Asteria.dll</HintPath>
+    <Reference Include="Asteria, Version=2.0.7615.29343, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\asteria.2.0.1-alpha\lib\Asteria.dll</HintPath>
     </Reference>
-    <Reference Include="Asteria.Forms, Version=1.0.7282.27804, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\asteria.1.0.6\lib\Asteria.Forms.dll</HintPath>
+    <Reference Include="Asteria.Forms, Version=2.0.7615.29345, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\asteria.2.0.1-alpha\lib\Asteria.Forms.dll</HintPath>
     </Reference>
     <Reference Include="Newtonsoft.Json, Version=12.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
-      <HintPath>..\packages\Newtonsoft.Json.12.0.2\lib\net45\Newtonsoft.Json.dll</HintPath>
+      <HintPath>..\packages\Newtonsoft.Json.12.0.3\lib\net45\Newtonsoft.Json.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
