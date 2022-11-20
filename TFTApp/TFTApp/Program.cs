@@ -14,8 +14,10 @@ namespace TFT
         [STAThread]
         static void Main()
         {
-            Application.EnableVisualStyles();
-            Application.SetCompatibleTextRenderingDefault(false);
+            Agora.Logging.AgoraLogger.SetVerbosity("Info");
+            "Starting".LogHeading();
+
+            Agora.Forms.Invoker.Configure();
             Application.Run(new Form1());
         }
     }

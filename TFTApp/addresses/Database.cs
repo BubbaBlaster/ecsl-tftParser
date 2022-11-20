@@ -5,10 +5,9 @@ using System.Data;
 using System.Linq;
 using System.Collections.Generic;
 using System.Text;
-using Asteria.Utilities;
-using Asteria.Configuration;
-using Asteria.Logging;
-using static Asteria.Logging.AsteriaLogger;
+using Agora.Utilities;
+using Microsoft.Extensions.Configuration;
+using static Agora.SDK;
 
 namespace addresses
 {
@@ -22,9 +21,9 @@ namespace addresses
         private DataTable _rawBanned;
 
         ObservableString _currentOperation = ObservableString.Get("CurrentOperation");
-        private string _OutputDir, _InputDir;
-        private string _TFT_Filename, _Special_Filename, _Banned_Filename, _NoShowRaw_Filename;
-        private List<string> _NoShow_Filenames;
+        private string OutputDir, InputDir;
+        private string TFTFilename, SpecialFilename, BannedFilename, NoShowRawFilename;
+        private List<string> NoShowFilenames;
 
         Dictionary<string, int> _NoShowPhones, _NoShowEmails;
         HashSet<string> _BannedPhones, _BannedEmails;
@@ -32,35 +31,22 @@ namespace addresses
 
         public Database()
         {
-            AppConfiguration.AppConfig.TryGetSetting("Data.InputDir", out Setting indir);
-            _InputDir = indir.Val;
-
-            if (!Directory.Exists(_InputDir))
+            InputDir = Config["Data:InputDir"];
+            if (!Directory.Exists(InputDir))
                 throw new Exception("Input directory not found.");
 
-            AppConfiguration.AppConfig.TryGetSetting("Data.OutputDir", out Setting outdir);
-            _OutputDir = outdir.Val;
-            Directory.CreateDirectory(_OutputDir);
+            OutputDir = Config["Data:OutputDir"];
+            Directory.CreateDirectory(OutputDir);
 
-            AppConfiguration.AppConfig.TryGetSetting("Data.TFTFilename", out Setting tftname);
-            _TFT_Filename = tftname.Val;
+            TFTFilename = Config["Data:TFTFilename"];
 
             //AppConfiguration.AppConfig.TryGetSetting("Data.PSFilename", out Setting psname);
             //_PS_Filename = psname.Val;
 
-            AppConfiguration.AppConfig.TryGetSetting("Data.SpecialFilename", out Setting specialname);
-            _Special_Filename = specialname.Val;
-
-            AppConfiguration.AppConfig.TryGetSetting("Data.NoShowFilename", out Setting noShowName);
-            _NoShow_Filenames = new List<string>();
-            foreach (var s in noShowName.Settings)
-                _NoShow_Filenames.Add(s.Value.Val);
-
-            AppConfiguration.AppConfig.TryGetSetting("Data.BannedFilename", out Setting BannedName);
-            _Banned_Filename = BannedName.Val;
-
-            AppConfiguration.AppConfig.TryGetSetting("Data.NoShowRaw", out Setting NoShowRaw);
-            _NoShowRaw_Filename = NoShowRaw.Val;
+            SpecialFilename = Config["Data:SpecialFilename"];
+            NoShowFilenames = Config.GetSection("Data:NoShowFilename").Get<List<string>>();
+            BannedFilename = Config["Data:BannedFilename"];
+            NoShowRawFilename = Config["Data:NoShowRaw"];
 
             Clear();
         }
@@ -69,7 +55,7 @@ namespace addresses
         {
             try
             {
-                Log.Write(LogLevel.Info, "Initializing Database");
+                "Initializing Database".LogInfo();
 
                 ReadNoShows();
 
@@ -94,18 +80,18 @@ namespace addresses
 
                 ComputeNoShows();
             }
-            catch (Exception e)
+            catch (Exception ex)
             {
-                Log.WriteException(LogLevel.Fatal, e, "Exception while creating database.");
+               "Exception while creating database.".LogException(ex, Agora.Logging.LogLevel.Fatal);
                 return;
             }
         }
 
         private void CheckChildrenFirstNamesNotEmpty()
         {
-            Log.Write(LogLevel.Info, "Checking for Empty First Names");
+            "Checking for Empty First Names".LogInfo();
 
-            StreamWriter sw = new StreamWriter(_OutputDir + "/FirstNameErrors.dat");
+            StreamWriter sw = new StreamWriter(OutputDir + "/FirstNameErrors.dat");
 
             // construct the data to search
             foreach (DataRow r in this._Data.Rows)
@@ -130,17 +116,17 @@ namespace addresses
 
         bool ProcessNoShowsRaw()
         {
-            Log.Write(LogLevel.Info, "Processing NoShowsRaw");
+            "Processing NoShowsRaw".LogInfo();
 
             _NoShowRawList = new List<int>();
 
             try
             {
                 int lineNumber = 0;
-                string filename = _InputDir + "/" + _NoShowRaw_Filename;
+                string filename = InputDir + "/" + NoShowRawFilename;
                 if (!File.Exists(filename))
                 {
-                    Log.Write(LogLevel.Warn, "NoShowsRaw: '" + _NoShowRaw_Filename + "' not found in '" + _InputDir + "' - Skipping");
+                    $"NoShowsRaw: '{NoShowRawFilename}' not found in '{InputDir}' - Skipping".LogInfo();
                     return false;
                 }
 
@@ -158,17 +144,16 @@ namespace addresses
                     }
                 }
             }
-            catch (Exception e)
+            catch (Exception ex)
             {
-                Log.WriteException(LogLevel.Fatal, e, "Exception encountered while processing NoShowsRaw");
+                "Exception encountered while processing NoShowsRaw".LogException(ex, Agora.Logging.LogLevel.Fatal);
                 return false;
             }
 
             if (_NoShowRawList.Count == 0)
                 return false;
 
-            List<string> output = new List<string>();
-            output.Add("CONTACT LAST,CONTACT FIRST,PHONE,EMAIL");
+            List<string> output = new() {"CONTACT LAST,CONTACT FIRST,PHONE,EMAIL"};
 
             foreach (var id in _NoShowRawList)
             {
@@ -179,9 +164,9 @@ namespace addresses
                 }
             }
 
-            File.WriteAllLines(_InputDir + "/ProcessedNoShows.csv", output);
+            File.WriteAllLines(InputDir + "/ProcessedNoShows.csv", output);
 
-            Log.Write(LogLevel.Info, "Processing NoShowRaw DB - Done");
+            "Processing NoShowRaw DB - Done".LogInfo();
 
             return true;
         }
@@ -212,15 +197,15 @@ namespace addresses
 
         private bool ReadBanned()
         {
-            Log.Write(LogLevel.Info, "Reading Banned");
+            "Reading Banned".LogInfo();
             var raw = _rawBanned = new DataTable();
             try
             {
                 int lineNumber = 0;
-                string filename = _InputDir + "/" + _Banned_Filename;
+                string filename = InputDir + "/" + BannedFilename;
                 if (!File.Exists(filename))
                 {
-                    Log.Write(LogLevel.Warn, "Banned DB: '" + _Banned_Filename + "' not found in '" + _InputDir + "' - Skipping");
+                    $"Banned DB: '{BannedFilename}' not found in '{InputDir}' - Skipping".LogWarn();
                     return false;
                 }
 
@@ -245,7 +230,7 @@ namespace addresses
 
                         if (tagInfo.Length != header.Length)
                         {
-                            Log.Write(LogLevel.Warn, "Line " + lineNumber + " - Length wrong: " + line);
+                            $"Line {lineNumber} - Length wrong: {line}".LogWarn();
                             go = false;
                         }
                         else
@@ -265,9 +250,9 @@ namespace addresses
                     } while (go);
                 }
             }
-            catch (Exception e)
+            catch (Exception ex)
             {
-                Log.WriteException(LogLevel.Warn, e, "Reading Banned DB - Failed");
+                "Reading Banned DB - Failed".LogException(ex);
                 return false;
             }
 
@@ -283,28 +268,28 @@ namespace addresses
                     _BannedEmails.Add((string)r[ColumnName.Email]);
             }
 
-            Log.Write(LogLevel.Info, "Reading Banned DB - Done");
+            "Reading Banned DB - Done".LogInfo();
             return true;
         }
 
         private bool ReadNoShows()
         {
-            Log.Write(LogLevel.Info, "Reading NoShows");
+             "Reading NoShows".LogInfo();
             var raw = _rawNoShows = new DataTable();
             int index = 0;
-            foreach (var fn in _NoShow_Filenames)
+            foreach (var fn in NoShowFilenames)
             {
                 try
                 {
                     int lineNumber = 0;
-                    string filename = _InputDir + "/" + fn;
+                    string filename = InputDir + "/" + fn;
                     if (!File.Exists(filename))
                     {
-                        Log.Write(LogLevel.Warn, "NoShows DB: '" + fn + "' not found in '" + _InputDir + "' - Skipping");
+                         $"NoShows DB: '{fn}' not found in '{InputDir}' - Skipping".LogWarn();
                         continue;
                     }
                     else
-                        Log.Write(LogLevel.Info, $"Reading NoShowDB - {filename}");
+                         $"Reading NoShowDB - {filename}".LogInfo();
 
                     HashSet<string> _uniqueLines = new HashSet<string>();
 
@@ -338,7 +323,7 @@ namespace addresses
 
                             if (tagInfo.Length != header.Length)
                             {
-                                Log.Write(LogLevel.Warn, "Line " + lineNumber + " - Length wrong: " + line);
+                                 $"Line {lineNumber} - Length wrong: {line}".LogWarn();
                                 go = false;
                             }
                             else
@@ -362,12 +347,12 @@ namespace addresses
                             if (sr.EndOfStream)
                                 go = false;
                         } while (go);
-                        Log.Write(LogLevel.Info, $"--- Num Records == {lineNumber}");
+                         $"--- Num Records == {lineNumber}".LogInfo();
                     }
                 }
                 catch (Exception e)
                 {
-                    Log.WriteException(LogLevel.Warn, e, "Reading NoShow DB - Failed");
+                    "Reading NoShow DB - Failed".LogException(e);
                     return false;
                 }
 
@@ -400,7 +385,7 @@ namespace addresses
                 }
             }
 
-            Log.Write(LogLevel.Info, "Reading NoShow DB - Done");
+             "Reading NoShow DB - Done".LogInfo();
             return true;
         }
 
@@ -411,12 +396,12 @@ namespace addresses
             int totalRegistrations = _Data.Rows.Count;
             int totalRegNoShow = 0;
 
-            string filename = _InputDir + "/" + _NoShowRaw_Filename;
-            string outFile = _OutputDir + "/NoShows-Processed.csv";
+            string filename = InputDir + "/" + NoShowRawFilename;
+            string outFile = OutputDir + "/NoShows-Processed.csv";
 
             if (!File.Exists(filename))
             {
-                Log.Write(LogLevel.Warn, "Missing <" + filename + ">.  After the event, this file is needed to produce event statistics.");
+                 $"Missing <{filename}>.  After the event, this file is needed to produce event statistics.".LogWarn();
                 return;
             }
 
@@ -446,7 +431,7 @@ namespace addresses
                         DataRow row = _Data.Rows.Find(cn);
                         if (row == null)
                         {
-                            Log.Write(LogLevel.Warn, "cn = '" + cn + "' - Does not exist.");
+                             $"cn = '{cn}' - Does not exist.".LogWarn();
                             continue;
                         }
                         row[ColumnName.pDup] = "N";
@@ -482,7 +467,7 @@ namespace addresses
                 } while (!sr.EndOfStream);
             }
 
-            StreamWriter sw = new StreamWriter(_OutputDir + "/EventStatistics.csv");
+            StreamWriter sw = new StreamWriter(OutputDir + "/EventStatistics.csv");
             sw.WriteLine("Total Kids Registered," + _totalKids);
             sw.WriteLine("NoShows Kids," + totalKidsNoShow + " (" + (100f * totalKidsNoShow / _totalKids).ToString("00.0") + "%)");
             sw.WriteLine("Total Kids Served," + (_totalKids - totalKidsNoShow)) ;
@@ -509,7 +494,7 @@ namespace addresses
 
         private void Clear()
         {
-            Log.Write(LogLevel.Info, "Initializing Database");
+             "Initializing Database".LogInfo();
             _Data.Clear();
             foreach (var colName in ColumnName.Array)
                 _Data.Columns.Add(colName);
@@ -540,15 +525,15 @@ namespace addresses
 
         private bool ReadSpecialRawData()
         {
-            Log.Write(LogLevel.Info, "Reading Special DB");
+             "Reading Special DB".LogInfo();
             var raw = _rawSpecialData = new DataTable();
             try
             {
                 int lineNumber = 0;
-                string filename = _InputDir + "/" + _Special_Filename;
+                string filename = InputDir + "/" + SpecialFilename;
                 if (!File.Exists(filename))
                 {
-                    Log.Write(LogLevel.Warn, "Special DB: '" + _Special_Filename + "' not found in '" + _InputDir + "' - Skipping");
+                     $"Special DB: '{SpecialFilename}' not found in '{InputDir}' - Skipping".LogWarn();
                     return false;
                 }
 
@@ -577,7 +562,7 @@ namespace addresses
 
                         if (tagInfo.Length != header.Length)
                         {
-                            Log.Write(LogLevel.Warn, "Line " + lineNumber + " - Length wrong: " + line);
+                             $"Line {lineNumber} - Length wrong: {line}".LogWarn();
                             go = false;
                         }
                         else
@@ -614,24 +599,24 @@ namespace addresses
             }
             catch (Exception e)
             {
-                Log.WriteException(LogLevel.Warn, e, "Reading Special DB - Failed");
+                "Reading Special DB - Failed".LogException(e);
                 return false;
             }
-            Log.Write(LogLevel.Info, "Reading Special DB - Done");
+             "Reading Special DB - Done".LogInfo();
             return true;
         }
 
         private bool ReadTFTRawData()
         {
-            Log.Write(LogLevel.Info, "Reading Toys-for-Tots Input");
+             "Reading Toys-for-Tots Input".LogInfo();
             _rawTFTData = new DataTable();
             int lineNumber = 0;
             try
             {
-                string filename = _InputDir + "/" + _TFT_Filename;
+                string filename = InputDir + "/" + TFTFilename;
                 if (!File.Exists(filename))
                 {
-                    Log.Write(LogLevel.Warn, "TFT DB: '" + _TFT_Filename + "' not found in '" + _InputDir + "' - Skipping");
+                     $"TFT DB: '{TFTFilename}' not found in '{InputDir}' - Skipping".LogWarn();
                     return false;
                 }
 
@@ -662,9 +647,14 @@ namespace addresses
                         lineNumber++;
                         string[] tagInfo = SplitCSV(line);
 
+                        if( Agora.Logging.AgoraLogger.GetVerbosity() == Agora.Logging.LogLevel.Trace)
+                        {
+                            $"Processing Line {lineNumber}".LogTrace();
+                        }
+
                         if (tagInfo.Length != header.Length)
                         {
-                            Log.Write(LogLevel.Warn, "Line " + lineNumber + " - Length wrong: " + line);
+                             $"Line {lineNumber} - Length wrong: {line}".LogWarn();
                             go = false;
                         }
                         else
@@ -701,7 +691,7 @@ namespace addresses
                                 _rawTFTData.Rows.Add(row);
                             }
                             else
-                                Log.Write(LogLevel.Trace, $"Skipping {(string)row[ColumnName.RequestID]} - {state}");
+                                $"Skipping {(string)row[ColumnName.RequestID]} - {state}".LogTrace();
                         }
                         if (sr.EndOfStream)
                             go = false;
@@ -710,16 +700,16 @@ namespace addresses
             }
             catch (Exception e)
             {
-                Log.WriteException(LogLevel.Warn, e, "Reading TFT DB - Failed");
+                "Reading TFT DB - Failed".LogException(e);
                 return false;
             }
-            Log.Write(LogLevel.Info, "Reading Toys-for-Tots Input - Done - " + lineNumber + " successfully parsed.");
+            $"Reading Toys-for-Tots Input - Done - {lineNumber} successfully parsed.".LogInfo();
             return true;
         }
 
         public void WriteSpecial()
         {
-            Log.Write(LogLevel.Info, "Writing Special");
+             "Writing Special".LogInfo();
             var Entries = from myRow in _Data.AsEnumerable()
                           where (myRow.Field<string>(ColumnName.Organization).Contains("Late"))
                           orderby myRow.Field<string>(ColumnName.ControlNumber) ascending, myRow.Field<string>(ColumnName.ContactLast)
@@ -736,7 +726,7 @@ namespace addresses
 
         public void WriteBook()
         {
-            Log.Write(LogLevel.Info, $"Writing Book");
+             $"Writing Book".LogInfo();
             var Entries = from myRow in _Data.AsEnumerable()
                               //where (myRow.Field<string>(ColumnName.ContactLast).CompareTo(_strBreak1End) <= 0)
                           orderby myRow.Field<string>(ColumnName.TimeSlotIndex) ascending, myRow.Field<string>(ColumnName.ContactLast)
@@ -762,7 +752,7 @@ namespace addresses
 
         public void WriteBook2()
         {
-            Log.Write(LogLevel.Info, "Writing Book2");
+             "Writing Book2".LogInfo();
             var Entries = from myRow in _Data.AsEnumerable()
                           where (myRow.Field<string>(ColumnName.ContactLast).CompareTo(_strBreak2End) <= 0 &&
                                  myRow.Field<string>(ColumnName.ContactLast).CompareTo(_strBreak2Begin) >= 0)
@@ -780,7 +770,7 @@ namespace addresses
 
         public void WriteBook3()
         {
-            Log.Write(LogLevel.Info, "Writing Book3");
+             "Writing Book3".LogInfo();
             var Entries = from myRow in _Data.AsEnumerable()
                           where (myRow.Field<string>(ColumnName.ContactLast).CompareTo(_strBreak3End) <= 0 &&
                                  myRow.Field<string>(ColumnName.ContactLast).CompareTo(_strBreak3Begin) >= 0)
@@ -798,7 +788,7 @@ namespace addresses
 
         public void WriteBook4()
         {
-            Log.Write(LogLevel.Info, "Writing Book4");
+             "Writing Book4".LogInfo();
             var Entries = from myRow in _Data.AsEnumerable()
                           where (myRow.Field<string>(ColumnName.ContactLast).CompareTo(_strBreak4Begin) >= 0)
                           orderby myRow.Field<string>(ColumnName.TimeSlotIndex) ascending, myRow.Field<string>(ColumnName.ContactLast)
@@ -815,7 +805,7 @@ namespace addresses
 
         public void WriteTFTEmails()
         {
-            Log.Write(LogLevel.Info, "Writing Email Invitation List");
+             "Writing Email Invitation List".LogInfo();
             var Entries = from myRow in _Data.AsEnumerable()
                           where (!string.IsNullOrEmpty(myRow.Field<string>(ColumnName.Email)))
                           orderby myRow.Field<string>(ColumnName.ContactLast)
@@ -826,7 +816,7 @@ namespace addresses
 
         public void WriteProjectSmileInvitations()
         {
-            Log.Write(LogLevel.Info, "Writing Printed Invitations List");
+             "Writing Printed Invitations List".LogInfo();
             var PSEntries = from myRow in _Data.AsEnumerable()
                             where (string.IsNullOrEmpty(myRow.Field<string>(ColumnName.Email)))
                             orderby myRow.Field<string>(ColumnName.ContactLast)
@@ -861,7 +851,7 @@ namespace addresses
 
         public void Merge()
         {
-            Log.Write(LogLevel.Info, "Merging");
+             "Merging".LogInfo();
             int index = 0;
             int count0 = 0, count7 = 0;
 
@@ -929,7 +919,7 @@ namespace addresses
                 _Data.Rows.Add(row);
             }
 
-            Log.Write(LogLevel.Info, "Merging - Done");
+             "Merging - Done".LogInfo();
         }
 
         private void CorrectPhone(DataRow row)
@@ -1094,7 +1084,7 @@ namespace addresses
         #endregion
         public void WriteCSV(string filename, OrderedEnumerableRowCollection<DataRow> data, bool bAppend)
         {
-            StreamWriter swOut = new StreamWriter(_OutputDir + '/' + filename, bAppend);
+            StreamWriter swOut = new StreamWriter(OutputDir + '/' + filename, bAppend);
 
             if (!bAppend)
             {
@@ -1187,7 +1177,7 @@ namespace addresses
         {
             
 
-            Log.Write(LogLevel.Info, "Computing BreakOut");
+             "Computing BreakOut".LogInfo();
             var entries = from myRow in _Data.AsEnumerable()
                           orderby myRow.Field<string>(ColumnName.ContactLast)
                           select myRow;
@@ -1258,7 +1248,7 @@ namespace addresses
                 _totalGirls_17 += countTFT;
 
                 if (countOnLine != totalOnLine)
-                    Log.Write(LogLevel.Warn, $"Line {index} (cn = {(string)e[ColumnName.ControlNumber]}) - total ({totalOnLine}) != count of kids ({countOnLine})");
+                     $"Line {index} (cn = {(string)e[ColumnName.ControlNumber]}) - total ({totalOnLine}) != count of kids ({countOnLine})".LogWarn();
             }
             _totalKids +=
                 _totalBoys_0_2 + 
@@ -1272,7 +1262,7 @@ namespace addresses
                 _totalGirls_12_16 +
                 _totalGirls_17;
 
-            StreamWriter sw = new StreamWriter(_OutputDir + "/RegistrationStatistics.csv");
+            StreamWriter sw = new StreamWriter(OutputDir + "/RegistrationStatistics.csv");
 
             sw.WriteLine("Total_Registrations," + _Data.Rows.Count);
             sw.WriteLine("Total Accepted," + entries.Count());
@@ -1388,13 +1378,13 @@ namespace addresses
                         sb.Append("     " + _strBreak3Begin + " - " + _strBreak3End + Environment.NewLine);
                         sb.Append("     " + _strBreak4Begin + " - Zzz");
 
-                        Directory.CreateDirectory(_OutputDir);
-                        StreamWriter swOut = new StreamWriter(_OutputDir + "/Breakout.txt");
+                        Directory.CreateDirectory(OutputDir);
+                        StreamWriter swOut = new StreamWriter(OutputDir + "/Breakout.txt");
                         swOut.WriteLine(sb.ToString());
                         swOut.Close();
-                        Log.Write(LogLevel.Info, sb.ToString());
+                         sb.ToString().LogInfo();
                         System.Threading.Thread.Sleep(250);
-                        Log.Write(LogLevel.Info, "Computing BreakOut - Done");
+                         "Computing BreakOut - Done".LogInfo();
                         System.Threading.Thread.Sleep(250);
                         return;
                 }
@@ -1412,7 +1402,7 @@ namespace addresses
         private Dictionary<string, Dictionary<string, string>> dictControlNumberProperties = new Dictionary<string, Dictionary<string, string>>();
         private void CheckForDuplicatePhones()
         {
-            Log.Write(LogLevel.Info, "Checking for Similar Entries");
+             "Checking for Similar Entries".LogInfo();
             System.Threading.Thread.Sleep(100);
             string FirstNumberInString(string s)
             {
@@ -1440,7 +1430,7 @@ namespace addresses
 
             int currentProgress = -1;
             int progress = 0;
-            Log.Write(LogLevel.Info, "Checking for Similar Children");
+             "Checking for Similar Children".LogInfo();
 
             // construct the data to search
             foreach (DataRow r1 in this._Data.Rows)
@@ -1449,7 +1439,7 @@ namespace addresses
                 if (currentProgress != (int)((double)progress / (double)_Data.Rows.Count * 10f))
                 {
                     currentProgress = (int)((double)progress / (double)_Data.Rows.Count * 10f);
-                    Log.Write(LogLevel.Info, currentProgress.ToString());
+                     currentProgress.ToString().LogInfo();
                     System.Threading.Thread.Sleep(100);
                 }
                 string cn = (string)r1[ColumnName.ControlNumber];
@@ -1479,7 +1469,7 @@ namespace addresses
                 if (currentProgress != (int)((double)progress / (double)dictControlNumberToChildrenIndex.Count * 10f))
                 {
                     currentProgress = (int)((double)progress / (double)dictControlNumberToChildrenIndex.Count * 10f);
-                    Log.Write(LogLevel.Info, currentProgress.ToString());
+                     currentProgress.ToString().LogInfo();
                 }
                 int t1 = int.Parse(tuple1.Key);
                 foreach (var tuple2 in dictControlNumberProperties)
@@ -1507,7 +1497,7 @@ namespace addresses
             }
 
             {
-                StreamWriter sw = new StreamWriter(_OutputDir + "/SimilarEntryIssues.dat");
+                StreamWriter sw = new StreamWriter(OutputDir + "/SimilarEntryIssues.dat");
                 foreach (var tuple in dictControlNumberProperties)
                 {
                     if (!string.IsNullOrEmpty(tuple.Value["SimilarEntryIssues"]))
@@ -1517,7 +1507,7 @@ namespace addresses
             }
 
             {
-                StreamWriter sw = new StreamWriter(_OutputDir + "/SimilarEntryIssuesReport.txt");
+                StreamWriter sw = new StreamWriter(OutputDir + "/SimilarEntryIssuesReport.txt");
                 string strHeading = "------------------------------------------------------------------------------";
                 foreach (var tuple in dictControlNumberProperties)
                 {
@@ -1558,12 +1548,11 @@ namespace addresses
         {
             string cn = S(row[ColumnName.ControlNumber]);
             int nCN = int.Parse(cn);
-            if (nCN < 50000)
-                sw.WriteLine("Project Smile Family - " + S(row[ColumnName.Volunteer]));
-            else if (nCN > 999990)
-                sw.WriteLine("Special Family");
+            if (nCN < 0)
+                sw.WriteLine("Special List");
             else
-                sw.WriteLine("TFT Entry");
+                sw.WriteLine("TFT List");
+            
             sw.WriteLine(S(row[ColumnName.ControlNumber]) + "   " + S(row[ColumnName.ContactLast]) + ", " + S(row[ColumnName.ContactFirst]));
             if (!(row[ColumnName.Address2] is System.DBNull))
             {
@@ -1609,7 +1598,7 @@ namespace addresses
 
             int currentProgress = -1;
             int progress = 0;
-            Log.Write(LogLevel.Info, "Checking for Similar Children");
+             "Checking for Similar Children".LogInfo();
             List<string> CNsWithChildrenNamingIssues = new List<string>();
             foreach (DataRow r in this._Data.Rows)
             {
@@ -1617,7 +1606,7 @@ namespace addresses
                 if (currentProgress != (int)((double)progress / (double)_Data.Rows.Count * 10f))
                 {
                     currentProgress = (int)((double)progress / (double)_Data.Rows.Count * 10f);
-                    Log.Write(LogLevel.Info, $"Checking for Similar Children - step {currentProgress} of 10.");
+                     $"Checking for Similar Children - step {currentProgress} of 10.".LogInfo();
                 }
 
                 if (string.Compare((string)r[ColumnName.Status], "approved", true) == 0 ) continue;
@@ -1632,13 +1621,13 @@ namespace addresses
                 dictControlNumberProperties[cn]["ChildrenDupsList"] = string.Empty;
                 dictControlNumberProperties[cn]["index"] = r[ColumnName.BookNumber].ToString() + ',' + r[ColumnName.PageNumber].ToString();
             }
-            Log.Write(LogLevel.Info, " - Clearing Dups List ");
+             " - Clearing Dups List ".LogInfo();
             foreach (var tuple1 in dictControlNumberToChildrenIndex)
             {
                 if (!dictControlNumberProperties.ContainsKey(tuple1.Key))
                     dictControlNumberProperties[tuple1.Key] = new Dictionary<string, string>();
             }
-            File.WriteAllLines(_OutputDir + "/ChildNamingIssues.dat", CNsWithChildrenNamingIssues);
+            File.WriteAllLines(OutputDir + "/ChildNamingIssues.dat", CNsWithChildrenNamingIssues);
 
             progress = 0;
             currentProgress = -1;
@@ -1650,7 +1639,7 @@ namespace addresses
                 if (currentProgress != (int)((double)progress / (double)dictControlNumberToChildrenIndex.Count * 10f))
                 {
                     currentProgress = (int)((double)progress / (double)dictControlNumberToChildrenIndex.Count * 10f);
-                    Log.Write(LogLevel.Info, currentProgress.ToString());
+                     currentProgress.ToString().LogInfo();
                 }
                 // are there at least 2 children
                 if (tuple1.Value.Length > 2)
@@ -1677,7 +1666,7 @@ namespace addresses
                 }
             }
 
-            StreamWriter sw2 = new StreamWriter(_OutputDir + "/ChildrenDupsIssues.dat");
+            StreamWriter sw2 = new StreamWriter(OutputDir + "/ChildrenDupsIssues.dat");
             foreach (var tuple in dictControlNumberProperties)
             {
                 if (!string.IsNullOrEmpty(tuple.Value["ChildrenDupsIssue"]))
@@ -1686,7 +1675,7 @@ namespace addresses
             sw2.Close();
 
             {
-                StreamWriter sw = new StreamWriter(_OutputDir + "/ChildrenDupsIssuesReport.txt");
+                StreamWriter sw = new StreamWriter(OutputDir + "/ChildrenDupsIssuesReport.txt");
                 string strHeading = "------------------------------------------------------------------------------";
                 foreach (var tuple in dictControlNumberProperties)
                 {

@@ -1,0 +1,24 @@
+{
+  "Name": "TFTApp",
+  "AEA2": {
+    "Logging": {
+      "Verbosity": "Trace"
+    }
+  },
+  "Data": {
+    "InputDir": "N:/TFTGit",
+    "OutputDir": "Data",
+    "TFTFilename": "TFT2022x.csv",
+    "SpecialFilename": "Special.csv",
+    "NoShowFilename": [
+      "2017-NoShows.csv",
+      "2018-NoShows.csv",
+      "2019-NoShows.csv",
+      "2020-NoShows.csv",
+      "2021-NoShows.csv"
+    ],
+    "NoShowRaw": "No-Shows-Raw2022.csv",
+    "NoShowsThisYearFilename": "2022-NoShows.csv",
+    "BannedFilename": "Banned.csv"
+  }
+}

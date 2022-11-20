@@ -10,10 +10,8 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using addresses;
-using Asteria.Utilities;
-using Asteria.Forms;
-using Asteria.Logging;
-using static Asteria.Logging.AsteriaLogger;
+using Agora.Utilities;
+using static Agora.SDK;
 
 namespace TFT
 {
@@ -27,8 +25,8 @@ namespace TFT
         {
             InitializeComponent();
 
-            Log.Add(new ListViewLoggerTarget(listView1));
-            Log.Add(new ApplicationFileLoggerTarget(@"N:\TFTGit"));
+            Agora.Logging.AgoraLogger.Add(new Agora.Forms.ListViewLogDisplay(listView1));
+            Agora.Logging.AgoraLogger.Add(new Agora.Forms.FileLoggerTarget(@"N:\TFTGit"));
 
             sw.AutoReset = false;
             sw.Interval = 1500;
