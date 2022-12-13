@@ -60,7 +60,7 @@ namespace addresses
             return ret;
         }
 
-        private void WriteEmailList(DataTable dB)
+        public static void WriteEmailList(DataTable dB, string ListName = "EmailList")
         {
             "Writing Email Invitation List".LogInfo();
             var Entries = from myRow in dB.AsEnumerable()
@@ -69,7 +69,7 @@ namespace addresses
                           orderby myRow.Field<string>(ColumnName.ContactLast)
                           select myRow;
 
-            Utilities.WriteCSV("EmailList-Nice.csv", dB, Entries, false);
+            Utilities.WriteCSV($"{ListName}-Nice.csv", dB, Entries, false);
 
             Entries = from myRow in dB.AsEnumerable()
                           where (!string.IsNullOrEmpty(myRow.Field<string>(ColumnName.Email)) &&
@@ -77,10 +77,10 @@ namespace addresses
                           orderby myRow.Field<string>(ColumnName.ContactLast)
                           select myRow;
 
-            Utilities.WriteCSV("EmailList-Naughty.csv", dB, Entries, false);
+            Utilities.WriteCSV($"{ListName}-Naughty.csv", dB, Entries, false);
         }
 
-        public void WriteBook(DataTable dB)
+        public static void WriteBook(DataTable dB, string BookName = "RegistrationBook")
         {
             $"Writing Book".LogInfo();
 
@@ -106,7 +106,7 @@ namespace addresses
                                     myRow.Field<int>(ColumnName.PageNumber)
                                   select myRow;
 
-            Utilities.WriteCSV("RegistrationBook-Nice.csv", dB, ResortedEntries, false);
+            Utilities.WriteCSV($"{BookName}-Nice.csv", dB, ResortedEntries, false);
 
             ResortedEntries = from myRow in dB.AsEnumerable()
                               where (myRow.Field<string>(ColumnName.AcceptsTerms) == "X")
@@ -114,11 +114,11 @@ namespace addresses
                                 myRow.Field<int>(ColumnName.PageNumber)
                               select myRow;
 
-            Utilities.WriteCSV("RegistrationBook-Naughty.csv", dB, ResortedEntries, false);
+            Utilities.WriteCSV($"{BookName}-Naughty.csv", dB, ResortedEntries, false);
         }
 
 
-        private static void GenerateRegistrationData(DataRow r)
+        public static void GenerateRegistrationData(DataRow r)
         {
             r[ColumnName.ProperName] = r[ColumnName.ContactLast] + ", " + r[ColumnName.ContactFirst];
             r[ColumnName.Kids] = string.Empty;

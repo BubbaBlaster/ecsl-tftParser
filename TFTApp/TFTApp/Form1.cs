@@ -55,6 +55,8 @@ namespace TFT
 
             dm.Register();
 
+            dm.Special();
+
             _bGridChanged.Value = !_bGridChanged.Value;
         }
 

@@ -83,5 +83,11 @@ namespace addresses
 
             registrar.Run();
         }
+
+        public void Special()
+        {
+            SpecialListProcessor sp = new();
+            sp.Run();
+        }
     }
 }
