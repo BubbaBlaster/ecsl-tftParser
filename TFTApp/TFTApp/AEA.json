@@ -19,6 +19,23 @@
     ],
     "NoShowRaw": "No-Shows-Raw2022.csv",
     "NoShowsThisYearFilename": "2022-NoShows.csv",
-    "BannedFilename": "Banned.csv"
+    "BannedFilename": "Banned.csv",
+    "PrevYearFilenames": [
+      "TFT2021.csv",
+      "TFT2020.csv",
+      "TFT2019.csv",
+      "TFT2018.csv"
+    ],
+    "PrevYearFilenamesx": [
+      "PS2017.csv",
+      "TFT2017.csv",
+      "PS2018.csv",
+      "TFT2018.csv",
+      "PS2019.csv",
+      "TFT2019.csv",
+      "PS2020.csv",
+      "TFT2020.csv",
+      "TFT2021.csv"
+    ]
   }
 }

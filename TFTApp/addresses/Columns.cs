@@ -83,8 +83,6 @@
         public const string Penalty = "PENALTY";
         public const string Total = "TOTAL";
         public const string Organization = "ORGANIZATION";
-        public const string Volunteer = "VOLUNTEER"; // PS
-        public const string VolunteerEmail = "VOLUNTEER EMAIL"; // PS
         public const string ProperName = "PROPER NAME";
         public const string TimeSlot = "TIME SLOT";
         public const string TimeSlotIndex = "TIME SLOT INDEX";
@@ -102,6 +100,7 @@
         public const string R8 = "R8";
         public const string R9 = "R9";
         public const string Kids = "KIDS";
+        public const string Filename = "FILENAME";
 
 
         public static string[] Array =
@@ -166,7 +165,7 @@
             ChildGender10,
             ChildAge10,
             Comments,
-            Volunteer,
+            Filename,
             R0,
             R1,
             R2,

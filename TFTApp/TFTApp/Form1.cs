@@ -18,9 +18,10 @@ namespace TFT
     public partial class Form1 : Form
     {
         Observable<bool> _bGridChanged = Observable<bool>.Get("GridChange");
-        Database DB;
         System.Timers.Timer sw = new System.Timers.Timer();
-       
+
+        public DataTable? Data = null;
+
         public Form1()
         {
             InitializeComponent();
@@ -32,7 +33,6 @@ namespace TFT
             sw.Interval = 1500;
             sw.Elapsed += Sw_Elapsed;
 
-            DB = new Database();
             sw.Start();
 
             _bGridChanged.PropertyChanged += _bGridChanged_PropertyChanged;
@@ -40,21 +40,27 @@ namespace TFT
 
         private void _bGridChanged_PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
-            dataGridView1.DataSource = DB._Data;
+            dataGridView1.DataSource = Data;
             dataGridView1.DoubleBuffered(true);
             dataGridView1.Update();
         }
 
         private void Sw_Elapsed(object sender, System.Timers.ElapsedEventArgs e)
         {
-            DB.Initialize();
+            var dm = DataManager.Instance;
+            dm.Initialize();
+            Data = dm.CurrentYearDB.Data;
+
+            dm.Analyze();
+
+            dm.Register();
 
             _bGridChanged.Value = !_bGridChanged.Value;
         }
 
         private void OnDGChange()
         { 
-            dataGridView1.DataSource = DB._Data;
+            dataGridView1.DataSource = Data;
             dataGridView1.DoubleBuffered(true);
         }
 
@@ -67,7 +73,7 @@ namespace TFT
         {
             var row = dataGridView1.Rows[e.RowIndex];
             var RowKey = row.Cells[ColumnName.ControlNumber].Value;
-            var DBRow = DB._Data.Rows.Find(RowKey);
+            var DBRow = Data.Rows.Find(RowKey);
             string cName = dataGridView1.Columns[e.ColumnIndex].Name;
             DBRow[cName] = dataGridView1.Rows[e.RowIndex].Cells[e.ColumnIndex].Value;
 
@@ -83,7 +89,7 @@ namespace TFT
                 numRejectedChildren = 0, numRejectedEntries = 0,
                 numDuplicateChildren = 0, numDuplicateEntries = 0,
                 numOtherChildren = 0, numOtherEntries = 0;
-            foreach (DataRow r in DB._Data.Rows)
+            foreach (DataRow r in Data.Rows)
             {
                 switch (((string)r[ColumnName.Status]))
                 {
@@ -117,14 +123,6 @@ namespace TFT
                    "Other (" + numOtherEntries + "/" + numOtherChildren + ")";
         }
 
-        private void ComputeSectionsToolStripMenuItem_Click(object sender, EventArgs e)
-        {
-            MessageBox.Show("Breakout at 'A-" + DB._strBreak1End + "' --- '" + 
-                DB._strBreak2Begin + "-" + DB._strBreak2End + "' --- '" +
-                DB._strBreak3Begin +"-" + DB._strBreak3End + "' --- '" + 
-                DB._strBreak4Begin + "-Z'");
-        }
-
         private void NoShowsToolStripMenuItem_Click(object sender, EventArgs e)
         {
             using (var ns = new NoShowProcessor())
@@ -135,7 +133,7 @@ namespace TFT
 
         private void Top5OrganizationsToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            using (var d = new Top5Analysis(DB._Data))
+            using (var d = new Top5Analysis(Data))
             {
                 d.ShowDialog();
             }
@@ -145,7 +143,7 @@ namespace TFT
         {
             int totalKidsRegistered = 0;
             int totalProjectSmileKidsRegistered = 0;
-            foreach (DataRow dr in DB._Data.Rows)
+            foreach (DataRow dr in Data.Rows)
             {
                 for (int i = 0; i < 10; i++)
                 {
@@ -165,16 +163,16 @@ namespace TFT
             while( !sr.EndOfStream )
             {
                 line = sr.ReadLine();
-                DataRow dr = DB._Data.Rows.Find(line);
+                DataRow dr = Data.Rows.Find(line);
                 if (dr != null)
-                    DB._Data.Rows.Remove(dr);
+                    Data.Rows.Remove(dr);
             }
             sr.Close();
 
             int totalKids = 0;
             int totalPSKids = 0;
-            int totalFamilies = DB._Data.Rows.Count;
-            foreach(DataRow dr in DB._Data.Rows)
+            int totalFamilies = Data.Rows.Count;
+            foreach(DataRow dr in Data.Rows)
             {
                 for (int i = 0; i < 10; i++)
                 {

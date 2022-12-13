@@ -768,40 +768,6 @@ namespace addresses
             WriteCSV("RegistrationBook.csv", Entries, true);
         }
 
-        public void WriteBook3()
-        {
-             "Writing Book3".LogInfo();
-            var Entries = from myRow in _Data.AsEnumerable()
-                          where (myRow.Field<string>(ColumnName.ContactLast).CompareTo(_strBreak3End) <= 0 &&
-                                 myRow.Field<string>(ColumnName.ContactLast).CompareTo(_strBreak3Begin) >= 0)
-                          orderby myRow.Field<string>(ColumnName.TimeSlotIndex) ascending, myRow.Field<string>(ColumnName.ContactLast)
-                          select myRow;
-
-            int page = 1;
-            foreach (var e in Entries)
-            {
-                e[ColumnName.BookNumber] = "3";
-                e[ColumnName.PageNumber] = page++;
-            }
-            WriteCSV("RegistrationBook.csv", Entries, true);
-        }
-
-        public void WriteBook4()
-        {
-             "Writing Book4".LogInfo();
-            var Entries = from myRow in _Data.AsEnumerable()
-                          where (myRow.Field<string>(ColumnName.ContactLast).CompareTo(_strBreak4Begin) >= 0)
-                          orderby myRow.Field<string>(ColumnName.TimeSlotIndex) ascending, myRow.Field<string>(ColumnName.ContactLast)
-                          select myRow;
-
-            int page = 1;
-            foreach (var e in Entries)
-            {
-                e[ColumnName.BookNumber] = "4";
-                e[ColumnName.PageNumber] = page++;
-            }
-            WriteCSV("RegistrationBook.csv", Entries, true);
-        }
 
         public void WriteTFTEmails()
         {
@@ -812,17 +778,6 @@ namespace addresses
                           select myRow;
 
             WriteCSV("EmailList.csv", Entries, false);
-        }
-
-        public void WriteProjectSmileInvitations()
-        {
-             "Writing Printed Invitations List".LogInfo();
-            var PSEntries = from myRow in _Data.AsEnumerable()
-                            where (string.IsNullOrEmpty(myRow.Field<string>(ColumnName.Email)))
-                            orderby myRow.Field<string>(ColumnName.ContactLast)
-                            select myRow;
-
-            WriteCSV("PrintedInvitationsList.csv", PSEntries, false);
         }
 
         private string Pretty(string txt)
