@@ -1,9 +1,7 @@
 {
   "Name": "TFTApp",
   "AEA2": {
-    "Logging": {
-      "Verbosity": "Trace"
-    }
+    "LogLevel": "Trace"
   },
   "Data": {
     "InputDir": "N:/TFTGit",

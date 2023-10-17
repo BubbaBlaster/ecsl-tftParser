@@ -26,8 +26,8 @@ namespace TFT
         {
             InitializeComponent();
 
-            Agora.Logging.AgoraLogger.Add(new Agora.Forms.ListViewLogDisplay(listView1));
-            Agora.Logging.AgoraLogger.Add(new Agora.Forms.FileLoggerTarget(@"N:\TFTGit"));
+            Agora.Logging.Logger.Instance.Add(new Agora.Forms.ListViewLogDisplay(listView1));
+            Agora.Logging.Logger.Instance.Add(new Agora.Forms.FileLoggerTarget(@"N:\TFTGit"));
 
             sw.AutoReset = false;
             sw.Interval = 1500;

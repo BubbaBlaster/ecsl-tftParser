@@ -14,7 +14,7 @@ namespace TFT
         [STAThread]
         static void Main()
         {
-            Agora.Logging.AgoraLogger.SetVerbosity("Info");
+            Agora.SDK.Log.SetLevel(Agora.Logging.LogLevel.Info);
             "Starting".LogHeading();
 
             Agora.Forms.Invoker.Configure();

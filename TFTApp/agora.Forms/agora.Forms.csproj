@@ -16,7 +16,7 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-	  <PackageReference Include="AgoraIoT.Edge.App.SDK" Version="1.0.1-beta" />
+	  <PackageReference Include="AgoraIoT.Edge.App.SDK" Version="1.1.45" />
 	</ItemGroup>
 
 	<ItemGroup>

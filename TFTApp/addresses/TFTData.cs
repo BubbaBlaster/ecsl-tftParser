@@ -66,8 +66,7 @@ namespace addresses
                     return false;
                 }
 
-                CsvReader reader = new();
-                var lines = reader.ReadCSV(filename);
+                var lines = CsvReader.ReadCSV(filename);
                 $"    Read {lines.Length} lines.".LogInfo();
 
                 using (var fs = new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
@@ -93,7 +92,7 @@ namespace addresses
                         currentLine = num;
                         string[] tagInfo = lines[num];
 
-                        if (Agora.Logging.AgoraLogger.GetVerbosity() == Agora.Logging.LogLevel.Trace)
+                        if (Agora.SDK.Log.GetLevel() == Agora.Logging.LogLevel.Trace)
                             $"    Processing Line {num}".LogTrace();
 
                         DataRow row = Data.NewRow();

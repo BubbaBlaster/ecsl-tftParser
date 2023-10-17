@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using static Agora.SDK;
 using static addresses.Utilities;
 using System.Data;
+using Agora.Utilities;
 
 namespace addresses;
 internal class BannedAnalyzer
@@ -16,9 +17,8 @@ internal class BannedAnalyzer
     {
         "Analyzing for Banned Entries - Starting".LogInfo();
         string filename = DataManager.Instance.InputDir + '/' + Config["Data:BannedFilename"];
-        Agora.Utilities.CsvReader reader = new();
-
-        var lines = reader.ReadCSV(filename);
+       
+        var lines = CsvReader.ReadCSV(filename);
         if (lines == null ||
             lines.Length == 0 ||
             lines[0].Length == 0)

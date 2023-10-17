@@ -15,15 +15,15 @@ namespace addresses
     {
         public DataTable _Data { get; } = new DataTable();
 
-        private DataTable _rawTFTData;
-        private DataTable _rawSpecialData;
-        private DataTable _rawNoShows;
-        private DataTable _rawBanned;
+        private DataTable? _rawTFTData;
+        private DataTable? _rawSpecialData;
+        private DataTable? _rawNoShows;
+        private DataTable? _rawBanned;
 
         ObservableString _currentOperation = ObservableString.Get("CurrentOperation");
-        private string OutputDir, InputDir;
-        private string TFTFilename, SpecialFilename, BannedFilename, NoShowRawFilename;
-        private List<string> NoShowFilenames;
+        private readonly string OutputDir, InputDir;
+        private readonly string TFTFilename, SpecialFilename, BannedFilename, NoShowRawFilename;
+        private readonly List<string> NoShowFilenames;
 
         Dictionary<string, int> _NoShowPhones, _NoShowEmails;
         HashSet<string> _BannedPhones, _BannedEmails;
@@ -31,22 +31,22 @@ namespace addresses
 
         public Database()
         {
-            InputDir = Config["Data:InputDir"];
+            InputDir = Config["Data:InputDir"] ?? string.Empty;
             if (!Directory.Exists(InputDir))
                 throw new Exception("Input directory not found.");
 
-            OutputDir = Config["Data:OutputDir"];
+            OutputDir = Config["Data:OutputDir"] ?? string.Empty;
             Directory.CreateDirectory(OutputDir);
 
-            TFTFilename = Config["Data:TFTFilename"];
+            TFTFilename = Config["Data:TFTFilename"] ?? string.Empty;
 
             //AppConfiguration.AppConfig.TryGetSetting("Data.PSFilename", out Setting psname);
             //_PS_Filename = psname.Val;
 
-            SpecialFilename = Config["Data:SpecialFilename"];
-            NoShowFilenames = Config.GetSection("Data:NoShowFilename").Get<List<string>>();
-            BannedFilename = Config["Data:BannedFilename"];
-            NoShowRawFilename = Config["Data:NoShowRaw"];
+            SpecialFilename = Config["Data:SpecialFilename"] ?? string.Empty;
+            NoShowFilenames = Config.GetSection("Data:NoShowFilename").Get<List<string>>() ?? new();
+            BannedFilename = Config["Data:BannedFilename"] ?? string.Empty;
+            NoShowRawFilename = Config["Data:NoShowRaw"] ?? string.Empty;
 
             Clear();
         }
@@ -647,7 +647,7 @@ namespace addresses
                         lineNumber++;
                         string[] tagInfo = SplitCSV(line);
 
-                        if( Agora.Logging.AgoraLogger.GetVerbosity() == Agora.Logging.LogLevel.Trace)
+                        if( Agora.SDK.Log.GetLevel() == Agora.Logging.LogLevel.Trace)
                         {
                             $"Processing Line {lineNumber}".LogTrace();
                         }

@@ -27,7 +27,7 @@ namespace Agora.Forms
 
         private void Add(long tick, LogLevel level, string message, bool heading = false)
         {
-            if (level < AgoraLogger.GetVerbosity())
+            if (level < Agora.SDK.Log.GetLevel())
                 return;
 
             _listView.InvokeIfRequired(() =>
