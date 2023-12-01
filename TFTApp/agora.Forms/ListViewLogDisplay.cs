@@ -34,7 +34,7 @@ namespace Agora.Forms
                 {
                     _listView.BeginUpdate();
 
-                    if (_listView.Items.Count > 100)
+                    if (_listView.Items.Count > 500)
                         _listView.Items.RemoveAt(0);
                     ListViewItem i = new(tick.ToString());
                     i.SubItems.Add(level.ToString());

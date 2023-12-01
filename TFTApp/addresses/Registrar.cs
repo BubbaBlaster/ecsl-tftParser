@@ -10,7 +10,7 @@ namespace addresses
 {
     internal class Registrar
     {
-        public static readonly string[] TimeSlots = { "8:00AM-9:00AM", "9:00AM-10:00AM", "10:00AM-11:00AM", "11:00AM-Noon", "Noon-1:00PM", "1:00PM-2:00PM", "2:00PM-3:00PM", "3:00PM-4:00PM" };
+        public static readonly string[] TimeSlots = { "8:00AM-9:00AM", "9:00AM-10:00AM", "10:00AM-11:00AM", "11:00AM-Noon", "1:00PM-2:00PM", "2:00PM-3:00PM", "3:00PM-4:00PM", "4:00PM-5:00PM" };
 
         public Registrar()
         { }
@@ -65,7 +65,7 @@ namespace addresses
             "Writing Email Invitation List".LogInfo();
             var Entries = from myRow in dB.AsEnumerable()
                           where (!string.IsNullOrEmpty(myRow.Field<string>(ColumnName.Email)) &&
-                              myRow.Field<string>(ColumnName.AcceptsTerms) != "X")
+                              myRow.Field<string>(ColumnName.AcceptsTerms) != "naughty")
                           orderby myRow.Field<string>(ColumnName.ContactLast)
                           select myRow;
 
@@ -73,7 +73,7 @@ namespace addresses
 
             Entries = from myRow in dB.AsEnumerable()
                           where (!string.IsNullOrEmpty(myRow.Field<string>(ColumnName.Email)) &&
-                              myRow.Field<string>(ColumnName.AcceptsTerms) == "X")
+                              myRow.Field<string>(ColumnName.AcceptsTerms) == "naughty")
                           orderby myRow.Field<string>(ColumnName.ContactLast)
                           select myRow;
 
@@ -101,7 +101,7 @@ namespace addresses
             }
 
             var ResortedEntries = from myRow in dB.AsEnumerable()
-                                  where (myRow.Field<string>(ColumnName.AcceptsTerms) != "X")
+                                  where (myRow.Field<string>(ColumnName.AcceptsTerms) != "naughty")
                                   orderby myRow.Field<int>(ColumnName.BookNumber) ascending,
                                     myRow.Field<int>(ColumnName.PageNumber)
                                   select myRow;
@@ -109,7 +109,7 @@ namespace addresses
             Utilities.WriteCSV($"{BookName}-Nice.csv", dB, ResortedEntries, false);
 
             ResortedEntries = from myRow in dB.AsEnumerable()
-                              where (myRow.Field<string>(ColumnName.AcceptsTerms) == "X")
+                              where (myRow.Field<string>(ColumnName.AcceptsTerms) == "naughty")
                               orderby myRow.Field<int>(ColumnName.BookNumber) ascending,
                                 myRow.Field<int>(ColumnName.PageNumber)
                               select myRow;
@@ -157,7 +157,7 @@ namespace addresses
                         prefix.Append("17   ");
                     if (age < 10)
                         prefix.Append(" ");
-                    r["R" + (i - 1).ToString()] = prefix.ToString() + $" ({age}): " + firstName;
+                    r["R" + (i - 1).ToString()] = prefix.ToString() + $" ({age}): {firstName,-20} BLUE      BLUE     GREEN";
                     bool bFirst = string.IsNullOrEmpty(((string)r[ColumnName.Kids]));
                     r[ColumnName.Kids] = r[ColumnName.Kids] + (bFirst ? "" : ", ") + firstName + $"({age})";
                 }

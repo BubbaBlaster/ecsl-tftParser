@@ -52,14 +52,14 @@ namespace addresses
             SimilarEntryAnalyzer simAn = new(CurrentYearDB!);
             simAn.Run();
 
-            FraudAnalyzer fraudAn = new(CurrentYearDB!);
+            BannedAnalyzer bannedAnalyzer = new();
+            bannedAnalyzer.Run();
+
+            FraudAnalyzer fraudAn = new(CurrentYearDB!, bannedAnalyzer.BannedControlNumbers);
             fraudAn.Run();
 
             StatisticsAnalyzer statistics = new();
             statistics.Run();
-
-            BannedAnalyzer bannedAnalyzer = new();
-            bannedAnalyzer.Run();
 
             $"Analyzing Data for '{CurrentYearDB.TFTFilename}' - Done".LogInfo();
         }

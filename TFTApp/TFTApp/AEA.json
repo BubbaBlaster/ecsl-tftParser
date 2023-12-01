@@ -6,7 +6,7 @@
   "Data": {
     "InputDir": "N:/TFTGit",
     "OutputDir": "Data",
-    "TFTFilename": "TFT2022x.csv",
+    "TFTFilename": "TFT2023.csv",
     "SpecialFilename": "Special.csv",
     "NoShowFilename": [
       "2017-NoShows.csv",
@@ -19,6 +19,7 @@
     "NoShowsThisYearFilename": "2022-NoShows.csv",
     "BannedFilename": "Banned.csv",
     "PrevYearFilenames": [
+      "TFT2022x.csv",
       "TFT2021.csv",
       "TFT2020.csv",
       "TFT2019.csv",
@@ -33,7 +34,8 @@
       "TFT2019.csv",
       "PS2020.csv",
       "TFT2020.csv",
-      "TFT2021.csv"
+      "TFT2021.csv",
+      "TFT2022x.csv"
     ]
   }
 }

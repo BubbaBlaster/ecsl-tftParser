@@ -15,10 +15,10 @@ namespace TFT
         static void Main()
         {
             Agora.SDK.Log.SetLevel(Agora.Logging.LogLevel.Info);
-            "Starting".LogHeading();
-
             Agora.Forms.Invoker.Configure();
-            Application.Run(new Form1());
+            var form = new Form1();
+            "Starting".LogHeading();
+            Application.Run(form);
         }
     }
 }

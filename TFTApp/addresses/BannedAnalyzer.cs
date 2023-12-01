@@ -12,12 +12,13 @@ using Agora.Utilities;
 namespace addresses;
 internal class BannedAnalyzer
 {
+    public Dictionary<string, List<string>> BannedControlNumbers = new();
     public BannedAnalyzer() { }
     public void Run()
     {
         "Analyzing for Banned Entries - Starting".LogInfo();
         string filename = DataManager.Instance.InputDir + '/' + Config["Data:BannedFilename"];
-       
+
         var lines = CsvReader.ReadCSV(filename);
         if (lines == null ||
             lines.Length == 0 ||
@@ -35,7 +36,7 @@ internal class BannedAnalyzer
         {
             string name = Pretty(lines[i][2]) + ',' + Pretty(lines[i][3]);
             bannedNames.Add(name);
-            bannedEmails.TryAdd(Pretty(lines[i][9]), name);
+            bannedEmails.TryAdd(lines[i][10].ToLower(), name);
             bannedPhones.TryAdd(PhoneString(lines[i][8]), name);
         }
 
@@ -44,39 +45,54 @@ internal class BannedAnalyzer
         var dB = DataManager.Instance.CurrentYearDB!;
         foreach (DataRow row in dB.Data.Rows)
         {
+            if (((string)row[ColumnName.Status]).ToLower() == "approved")
+                continue;
             string name = (string)row[ColumnName.ContactLast] + ',' + (string)row[ColumnName.ContactFirst];
             if (bannedNames.Contains(name))
             {
-                bannedRows.Add(new(row, "Banned Primary Contact"));
-                continue;
+                bannedRows.Add(new(row, $"Banned Primary Contact - {name}"));
             }
             name = (string)row[ColumnName.Contact2Last] + ',' + (string)row[ColumnName.Contact2First];
             if (bannedNames.Contains(name))
             {
-                bannedRows.Add(new(row, "Banned Secondary Contact"));
-                continue;
+                bannedRows.Add(new(row, $"Banned Secondary Contact - {name}"));
             }
-            if (bannedEmails.ContainsKey((string)row[ColumnName.Email]))
+
+            string key = ((string)row[ColumnName.Email]).ToLower();
+            if (bannedEmails.ContainsKey(key))
             {
-                bannedRows.Add(new(row, "Banned Email"));
-                continue;
+                bannedRows.Add(new(row, $"Banned Email - {bannedEmails[key]}"));
             }
-            if (bannedPhones.ContainsKey((string)row[ColumnName.Phone]))
+
+            key = (string)row[ColumnName.Phone];
+            if (bannedPhones.ContainsKey(key))
             {
-                bannedRows.Add(new(row, "Banned Phone1"));
-                continue;
+                bannedRows.Add(new(row, $"Banned Phone1 - {bannedPhones[key]}"));
             }
-            if (bannedPhones.ContainsKey((string)row[ColumnName.Phone2]))
+
+            key = (string)row[ColumnName.Phone2];
+            if (bannedPhones.ContainsKey(key))
             {
-                bannedRows.Add(new(row, "Banned Phone2"));
-                continue;
+                bannedRows.Add(new(row, $"Banned Phone2 - {bannedPhones[key]}"));
+            }
+            if (((string)row[ColumnName.Address]).ToLower().Contains("tomasa"))
+            {
+                bannedRows.Add(new(row, $"Banned Street (Tomasa)"));
             }
         }
 
         StreamWriter sw = new(DataManager.Instance.OutputDir + $"/BannedEntriesReport-{dB.TFTFilename}.txt");
 
         foreach (var item in bannedRows)
-            sw.WriteLine((string)item.Item1[ColumnName.ControlNumber] + " - " + item.Item2);
+        {
+            string cn = (string)item.Item1[ColumnName.ControlNumber];
+            string reason = item.Item2;
+            if (!BannedControlNumbers.ContainsKey(cn))
+                BannedControlNumbers.Add(cn, new() { reason });
+            else
+                BannedControlNumbers[cn].Add(reason);
+            sw.WriteLine(cn + " - " + reason);
+        }
 
         sw.Close();
 
